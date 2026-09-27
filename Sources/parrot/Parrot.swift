@@ -25,7 +25,7 @@ struct Run: ParsableCommand {
     @Flag(name: .long, help: "Print every keyboard event the tap sees (debug).")
     var debugHotkey: Bool = false
 
-    @Flag(name: .long, help: "Write each capture to /tmp/parrot-last.wav for inspection.")
+    @Flag(name: .long, help: "Write each capture to ~/Library/Caches/parrot/last-capture.wav for inspection.")
     var dumpWav: Bool = false
 
     @Flag(name: .long, help: "Disable the on-screen recording overlay.")
@@ -35,6 +35,13 @@ struct Run: ParsableCommand {
     var model: String?
 
     func run() throws {
+        // Agents installed before 0.0.6 log to /tmp until the plist is rewritten.
+        if Paths.legacyTmpFiles.contains(where: { FileManager.default.fileExists(atPath: $0) }) {
+            FileHandle.standardError.write(Data(
+                "note: old parrot logs found in /tmp; run `parrot install --launch-at-login` again to remove them and log privately.\n".utf8
+            ))
+        }
+
         if !skipDoctor {
             let checks = DoctorReport.run()
             if !DoctorReport.allOK(checks) {
@@ -116,8 +123,9 @@ struct Run: ParsableCommand {
                         String(format: "○ captured %.2fs · rms %.3f\n", seconds, rms).utf8
                     ))
                     if dumpWav, !samples.isEmpty {
-                        let path = "/tmp/parrot-last.wav"
                         do {
+                            let dir = try Paths.prepareDirectory(Paths.caches)
+                            let path = try Paths.preparePrivateFile(dir.appendingPathComponent("last-capture.wav")).path
                             try WAVWriter.write(samples: samples, sampleRate: 16_000, to: path)
                             FileHandle.standardError.write(Data("  wrote \(path)\n".utf8))
                         } catch {
@@ -136,8 +144,9 @@ struct Run: ParsableCommand {
                         do {
                             let text = try await transcriber.transcribe(samples)
                             let elapsed = Date().timeIntervalSince(started)
+                            // Never log the transcript itself: the agent's log is a file on disk.
                             FileHandle.standardError.write(Data(
-                                String(format: "→ %.2fs · %@\n", elapsed, text).utf8
+                                String(format: "→ %.2fs · %d chars\n", elapsed, text.count).utf8
                             ))
                             await MainActor.run {
                                 TextInjector.inject(text)

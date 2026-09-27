@@ -19,7 +19,7 @@ Requires macOS 14+ on Apple Silicon. `parrot setup` grants mic and accessibility
 2. Hold `fn` and speak. A small pill at the bottom of the screen shows the mic is live.
 3. Release. The transcript is typed at the cursor, usually within 200–300 ms.
 
-Run `parrot install --launch-at-login` to keep it running in the menu bar. If `fn` is mapped to input source or emoji, `parrot doctor` shows how to fix it.
+Run `parrot install --launch-at-login` to keep it running in the menu bar. It logs to `~/Library/Logs/parrot/`, readable only by you, and records timings and character counts, never what you said. If `fn` is mapped to input source or emoji, `parrot doctor` shows how to fix it.
 
 ## 3. CLI
 
@@ -29,7 +29,7 @@ Run `parrot install --launch-at-login` to keep it running in the menu bar. If `f
 | `parrot setup` | One-time setup: permissions and model download |
 | `parrot doctor` | Check permissions and the `fn` key setting |
 | `parrot install --launch-at-login` | Register a LaunchAgent |
-| `parrot install --uninstall` | Remove the LaunchAgent |
+| `parrot install --uninstall` | Remove the LaunchAgent and its logs |
 | `parrot models list` | List available models |
 | `parrot models download <id>` | Pre-download a model |
 | `parrot --model whisper-large-v3-turbo` | Larger, multilingual model |

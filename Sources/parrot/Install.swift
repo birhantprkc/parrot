@@ -27,6 +27,7 @@ struct Install: ParsableCommand {
 
         if uninstall {
             try removeAgent()
+            removeLegacyTmpFiles()
         } else {
             try writeAgent()
         }
@@ -43,8 +44,18 @@ struct Install: ParsableCommand {
             .appendingPathComponent("\(Self.label).plist")
     }
 
+    private var outLog: URL { Paths.logs.appendingPathComponent("parrot.out.log") }
+    private var errLog: URL { Paths.logs.appendingPathComponent("parrot.err.log") }
+
     private func writeAgent() throws {
         let binary = try resolveBinaryPath()
+
+        // launchd opens these as the user; the 0700 directory keeps them
+        // private. No Umask key: it would also apply to WhisperKit's model
+        // directories and break downloads from the daemon.
+        try Paths.prepareDirectory(Paths.logs)
+        try Paths.preparePrivateFile(outLog)
+        try Paths.preparePrivateFile(errLog)
 
         let plist: [String: Any] = [
             "Label": Self.label,
@@ -52,8 +63,8 @@ struct Install: ParsableCommand {
             "RunAtLoad": true,
             "KeepAlive": ["SuccessfulExit": false] as [String: Any],
             "ProcessType": "Interactive",
-            "StandardOutPath": "/tmp/parrot.out.log",
-            "StandardErrorPath": "/tmp/parrot.err.log",
+            "StandardOutPath": outLog.path,
+            "StandardErrorPath": errLog.path,
         ]
 
         let url = plistURL
@@ -70,6 +81,9 @@ struct Install: ParsableCommand {
 
         // Best-effort bootstrap; ignore failure if already loaded.
         _ = runLaunchctl(["bootout", "gui/\(uid())", url.path])
+        // After bootout so the old agent is gone, before bootstrap so the
+        // new one doesn't find them and warn.
+        removeLegacyTmpFiles()
         let result = runLaunchctl(["bootstrap", "gui/\(uid())", url.path])
         if result.status != 0 {
             FileHandle.standardError.write(Data(
@@ -80,7 +94,7 @@ struct Install: ParsableCommand {
         print("✓ launch-at-login installed")
         print("  plist:  \(url.path)")
         print("  binary: \(binary)")
-        print("  logs:   /tmp/parrot.out.log, /tmp/parrot.err.log")
+        print("  logs:   \(Paths.logs.path)/")
     }
 
     private func removeAgent() throws {
@@ -91,6 +105,27 @@ struct Install: ParsableCommand {
             print("✓ launch-at-login removed")
         } else {
             print("nothing to remove (no agent at \(url.path))")
+        }
+        for dir in [Paths.logs, Paths.caches] where Paths.fileType(dir.path) != nil {
+            try FileManager.default.removeItem(at: dir)
+            print("  removed \(dir.path)")
+        }
+    }
+
+    /// Delete the pre-0.0.6 /tmp logs and capture. They hold the user's
+    /// transcripts; only touch files this user owns.
+    private func removeLegacyTmpFiles() {
+        for path in Paths.legacyTmpFiles {
+            guard
+                let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+                (attrs[.ownerAccountID] as? NSNumber)?.uint32Value == uid()
+            else { continue }
+            do {
+                try FileManager.default.removeItem(atPath: path)
+                print("  removed \(path)")
+            } catch {
+                FileHandle.standardError.write(Data("warning: couldn't remove \(path): \(error)\n".utf8))
+            }
         }
     }
 
