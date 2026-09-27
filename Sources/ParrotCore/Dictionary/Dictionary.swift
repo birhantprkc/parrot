@@ -194,17 +194,18 @@ enum DictionaryParseError: Error, Equatable, CustomStringConvertible {
 // MARK: - First-run template
 
 extension UserDictionary {
-    /// Written on first run so the file starts with one working example of
-    /// each entry type. JSON has no comments; the README documents the format.
+    /// Written on first run so the file shows the shape of each entry type.
+    /// It only touches Parrot's own dependency name, so it changes nothing a
+    /// new user is likely to say. `examples` starts empty: an example sentence
+    /// adds decoding time to every dictation, so it should be the user's own.
+    /// JSON has no comments; the README documents the format.
     static let template = """
         {
-          "terms": ["PostHog", "WhisperKit"],
+          "terms": ["WhisperKit"],
           "replacements": [
-            { "from": ["post hog", "posthoc"], "to": "PostHog" }
+            { "from": ["whisper kit"], "to": "WhisperKit" }
           ],
-          "examples": {
-            "en": "I pushed the WhisperKit fix and checked the PostHog dashboard before the review."
-          }
+          "examples": {}
         }
 
         """

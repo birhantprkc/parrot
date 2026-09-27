@@ -120,7 +120,7 @@ final class DictionaryStoreTests: XCTestCase {
         let loaded = store.current().dictionary
         XCTAssertFalse(loaded.terms.isEmpty)
         XCTAssertFalse(loaded.replacements.isEmpty)
-        XCTAssertNotNil(loaded.example(for: "en"))
+        XCTAssertNil(loaded.example(for: "en"), "the starter file has no example sentence")
         XCTAssertEqual(logs, [])
     }
 
