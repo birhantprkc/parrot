@@ -1,4 +1,6 @@
-/// Custom dictionary preferences (#33). The terms themselves live in `Paths.dictionaryFile`. Empty until that feature lands.
+/// Custom dictionary preferences (#33). Empty: the terms, replacements and
+/// example sentences live in their own file, `Paths.dictionaryFile`, which
+/// `DictionaryStore` reads.
 ///
 /// The `settings.json` field for this feature; see `Settings`. Give each new
 /// field a default and decode it in `init(from:)` with

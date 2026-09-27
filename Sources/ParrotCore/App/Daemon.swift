@@ -77,6 +77,10 @@ public enum Daemon {
         }
         let menuBar = MenuBarController(modelID: model.id)
 
+        // The dictionary (#33): created on first run, reloaded when it changes.
+        let dictionary = DictionaryStore()
+        dictionary.createIfMissing()
+
         // Overlay first, then menu bar: the order the UI updated in before.
         var observers: [DictationObserver] = []
         if let overlay { observers.append(overlay) }
@@ -84,7 +88,7 @@ public enum Daemon {
         let controller = DictationController(
             capture: capture,
             transcriber: transcriber,
-            processors: [],
+            processors: [DictionaryProcessor(store: dictionary)],
             observers: observers,
             dumpWav: options.dumpWav,
             delivery: TextDelivery(mode: options.injectMode)
