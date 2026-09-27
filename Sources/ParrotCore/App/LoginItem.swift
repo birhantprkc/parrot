@@ -1,150 +1,179 @@
+import AppKit
 import Foundation
+import ServiceManagement
 
-/// Manage parrot's LaunchAgent so the daemon starts at login.
+/// Launch at login through `SMAppService.mainApp`: macOS starts Parrot.app
+/// itself at login and lists it under System Settings → General → Login
+/// Items. Needs the signed bundle; a bare `swift build` binary has none.
 ///
-/// We deliberately do NOT use SMAppService.mainApp here — that requires a full
-/// .app bundle. Since parrot ships as a single binary in /usr/local/bin, a
-/// plain LaunchAgent plist is the simpler, more honest mechanism.
-public enum LaunchAgent {
-    /// Register parrot to start at login (`parrot install --launch-at-login`).
+/// Behind `parrot install --launch-at-login`, `parrot install --uninstall`,
+/// and the "Launch at login" menu item.
+public enum LoginItem {
+    /// Register Parrot to start at login (`parrot install --launch-at-login`),
+    /// and start it now.
     public static func install() throws {
-        try writeAgent()
-    }
-
-    /// Remove the agent and its logs (`parrot install --uninstall`).
-    public static func uninstall() throws {
-        try removeAgent()
-        removeLegacyTmpFiles()
-    }
-
-    // MARK: -
-
-    static let label = "com.digimata.parrot"
-
-    private static var plistURL: URL { Paths.launchAgentPlist(label: label) }
-    private static var outLog: URL { Paths.daemonOutLog }
-    private static var errLog: URL { Paths.daemonErrLog }
-
-    private static func writeAgent() throws {
-        let binary = try resolveBinaryPath()
-
-        // launchd opens these as the user; the 0700 directory keeps them
-        // private. No Umask key: it would also apply to WhisperKit's model
-        // directories and break downloads from the daemon.
-        try Paths.prepareDirectory(Paths.logs)
-        try Paths.preparePrivateFile(outLog)
-        try Paths.preparePrivateFile(errLog)
+        guard let app = AppBundle.current else {
+            Log.error("launch at login needs Parrot.app. Install it from the DMG, then run this again.")
+            throw SilentExit(1)
+        }
 
         // Move old models now, while we have the terminal's ~/Documents
-        // access. The daemon can't read ~/Documents.
+        // access. The app can't read ~/Documents.
         WhisperKitTranscriber.migrateLegacyModels()
 
-        let plist: [String: Any] = [
-            "Label": Self.label,
-            "ProgramArguments": [binary, "run", "--skip-doctor"],
-            "RunAtLoad": true,
-            "KeepAlive": ["SuccessfulExit": false] as [String: Any],
-            "ProcessType": "Interactive",
-            "StandardOutPath": outLog.path,
-            "StandardErrorPath": errLog.path,
-        ]
-
-        let url = plistURL
-        try FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        let data = try PropertyListSerialization.data(
-            fromPropertyList: plist,
-            format: .xml,
-            options: 0
-        )
-        try data.write(to: url, options: .atomic)
-
-        // Best-effort bootstrap; ignore failure if already loaded.
-        _ = runLaunchctl(["bootout", "gui/\(uid())", url.path])
-        // After bootout so the old agent is gone, before bootstrap so the
-        // new one doesn't find them and warn.
-        removeLegacyTmpFiles()
-        let result = runLaunchctl(["bootstrap", "gui/\(uid())", url.path])
-        if result.status != 0 {
-            Log.warning("launchctl bootstrap exited \(result.status):\n\(result.stderr)")
+        if LegacyLaunchAgent.remove() {
+            print("✓ removed the old LaunchAgent (\(Paths.legacyLaunchAgentLabel))")
         }
 
-        print("✓ launch-at-login installed")
-        print("  plist:  \(url.path)")
-        print("  binary: \(binary)")
-        print("  logs:   \(Paths.logs.path)/")
+        do {
+            try SMAppService.mainApp.register()
+        } catch {
+            Log.error("couldn't register the login item: \(error)")
+            throw SilentExit(1)
+        }
+
+        switch SMAppService.mainApp.status {
+        case .requiresApproval:
+            print("! launch at login needs your approval")
+            print("  System Settings → General → Login Items → allow Parrot")
+            SMAppService.openSystemSettingsLoginItems()
+        default:
+            print("✓ launch at login on")
+        }
+        print("  app:  \(app.path)")
+        print("  logs: \(Paths.logs.path)/")
+
+        // The old agent started the daemon right away; so does this. A
+        // second copy exits at once on the instance lock.
+        let open = Process()
+        open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        open.arguments = [app.path]
+        try? open.run()
+        open.waitUntilExit()
     }
 
-    private static func removeAgent() throws {
-        let url = plistURL
-        if FileManager.default.fileExists(atPath: url.path) {
-            _ = runLaunchctl(["bootout", "gui/\(uid())", url.path])
-            try FileManager.default.removeItem(at: url)
-            print("✓ launch-at-login removed")
+    /// Remove launch at login, quit the app, and delete logs and caches
+    /// (`parrot install --uninstall`). Config and models stay.
+    public static func uninstall() throws {
+        if AppBundle.current != nil, SMAppService.mainApp.status != .notRegistered {
+            do {
+                try SMAppService.mainApp.unregister()
+                print("✓ launch at login off")
+            } catch {
+                Log.warning("couldn't unregister the login item: \(error)")
+            }
         } else {
-            print("nothing to remove (no agent at \(url.path))")
+            print("launch at login was not on")
         }
+        if LegacyLaunchAgent.remove() {
+            print("✓ removed the old LaunchAgent (\(Paths.legacyLaunchAgentLabel))")
+        }
+        LegacyLaunchAgent.removeTmpFiles()
+
+        let me = ProcessInfo.processInfo.processIdentifier
+        for running in NSRunningApplication.runningApplications(withBundleIdentifier: AppBundle.identifier)
+        where running.processIdentifier != me {
+            running.terminate()
+            print("  quit Parrot (pid \(running.processIdentifier))")
+        }
+
         for dir in [Paths.logs, Paths.caches] where Paths.fileType(dir.path) != nil {
             try FileManager.default.removeItem(at: dir)
             print("  removed \(dir.path)")
         }
     }
 
-    /// Delete the pre-0.0.6 /tmp logs and capture. They hold the user's
+    /// Whether the menu item can work: only inside Parrot.app.
+    static var isAvailable: Bool { AppBundle.current != nil }
+
+    /// On, or waiting for approval in System Settings.
+    static var isEnabled: Bool {
+        switch SMAppService.mainApp.status {
+        case .enabled, .requiresApproval: return true
+        default: return false
+        }
+    }
+
+    /// Turns launch at login on or off from the menu.
+    static func setEnabled(_ on: Bool) throws {
+        if on {
+            try SMAppService.mainApp.register()
+            if SMAppService.mainApp.status == .requiresApproval {
+                SMAppService.openSystemSettingsLoginItems()
+            }
+        } else {
+            try SMAppService.mainApp.unregister()
+        }
+    }
+}
+
+/// The hand-written LaunchAgent that pre-app versions installed, which
+/// `SMAppService` replaced. Removing it stops the old daemon and keeps it
+/// from coming back at the next login. Models, config, and logs stay.
+enum LegacyLaunchAgent {
+    /// Boots out the agent and deletes its plist. Returns whether there was
+    /// an agent to remove.
+    ///
+    /// `launchctl` is injected so tests never touch the real launchd domain.
+    @discardableResult
+    static func remove(
+        plist: URL = Paths.legacyLaunchAgentPlist,
+        label: String = Paths.legacyLaunchAgentLabel,
+        launchctl: ([String]) -> Int32 = runLaunchctl
+    ) -> Bool {
+        let service = "gui/\(getuid())/\(label)"
+        let hasPlist = Paths.fileType(plist.path) != nil
+        let isLoaded = launchctl(["print", service]) == 0
+        guard hasPlist || isLoaded else { return false }
+
+        if isLoaded {
+            // Stops the old daemon. By service target, so it works even if
+            // the plist on disk no longer matches what launchd loaded.
+            let status = launchctl(["bootout", service])
+            if status != 0 {
+                Log.warning("launchctl bootout \(service) exited \(status)")
+            }
+        }
+        if hasPlist {
+            do {
+                try FileManager.default.removeItem(at: plist)
+            } catch {
+                Log.warning("couldn't remove \(plist.path): \(error)")
+            }
+        }
+        Log.info("removed the old LaunchAgent \(label)")
+        return true
+    }
+
+    /// Deletes the pre-0.0.6 /tmp logs and capture. They hold the user's
     /// transcripts; only touch files this user owns.
-    private static func removeLegacyTmpFiles() {
+    static func removeTmpFiles() {
         for path in Paths.legacyTmpFiles {
             guard
                 let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-                (attrs[.ownerAccountID] as? NSNumber)?.uint32Value == uid()
+                (attrs[.ownerAccountID] as? NSNumber)?.uint32Value == getuid()
             else { continue }
             do {
                 try FileManager.default.removeItem(atPath: path)
-                print("  removed \(path)")
+                Log.info("removed \(path)")
             } catch {
                 Log.warning("couldn't remove \(path): \(error)")
             }
         }
     }
 
-    private static func resolveBinaryPath() throws -> String {
-        // /usr/local/bin/parrot is the canonical install path. Honor a real
-        // location if running from elsewhere (e.g. dev).
-        let candidate = Paths.installedBinary
-        if FileManager.default.isExecutableFile(atPath: candidate) {
-            return candidate
-        }
-        // Fall back to the running executable's resolved path.
-        let argv0 = CommandLine.arguments.first ?? "parrot"
-        if argv0.hasPrefix("/"), FileManager.default.isExecutableFile(atPath: argv0) {
-            Log.info("note: \(candidate) not found; using \(argv0)")
-            return argv0
-        }
-        Log.error("couldn't locate the parrot binary. install it to \(candidate) first.")
-        throw SilentExit(1)
-    }
-
-    private static func uid() -> uid_t { getuid() }
-
-    private static func runLaunchctl(_ args: [String]) -> (status: Int32, stderr: String) {
+    static func runLaunchctl(_ args: [String]) -> Int32 {
         let task = Process()
-        task.launchPath = "/bin/launchctl"
+        task.executableURL = URL(fileURLWithPath: "/bin/launchctl")
         task.arguments = args
-        let errPipe = Pipe()
-        task.standardError = errPipe
-        task.standardOutput = Pipe()
+        task.standardError = FileHandle.nullDevice
+        task.standardOutput = FileHandle.nullDevice
         do {
             try task.run()
         } catch {
-            return (-1, "\(error)")
+            return -1
         }
         task.waitUntilExit()
-        let err = String(
-            data: errPipe.fileHandleForReading.readDataToEndOfFile(),
-            encoding: .utf8
-        ) ?? ""
-        return (task.terminationStatus, err)
+        return task.terminationStatus
     }
 }

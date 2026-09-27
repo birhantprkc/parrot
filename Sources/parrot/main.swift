@@ -8,6 +8,7 @@ struct Parrot: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "parrot",
         abstract: "Minimal macOS dictation daemon. Hold Fn, speak, release.",
+        version: AppBundle.version,
         subcommands: [Run.self, Setup.self, Doctor.self, Models.self, Install.self],
         defaultSubcommand: Run.self
     )
@@ -47,6 +48,11 @@ struct Run: ParsableCommand {
     var injectMode: InjectMode = .paste
 
     func run() throws {
+        // The app and a foreground run would both paste every dictation.
+        guard AppLaunch.claimSingleInstance() else {
+            Log.error("Parrot is already running. Quit it from the menu bar first.")
+            throw ExitCode(1)
+        }
         do {
             try Daemon.run(DaemonOptions(
                 skipDoctor: skipDoctor,
@@ -57,11 +63,12 @@ struct Run: ParsableCommand {
                 injectMode: injectMode
             ))
         } catch let failure as StartupFailure {
-            // The one exit-code rule. launchd's KeepAlive{SuccessfulExit: false}
-            // relaunches on nonzero exit, and a relaunch can't fix a permanent
-            // failure, so print its fix once and exit 0. Everything else exits
-            // nonzero and gets restarted.
+            // The one exit-code rule. A supervisor that relaunches on nonzero
+            // exit can't fix a permanent failure, so print its fix once and
+            // exit 0. Everything else exits nonzero. The app has no terminal,
+            // so it also shows the failure in a dialog.
             Log.error(failure.message)
+            MainActor.assumeIsolated { AppLaunch.presentStartupFailure(failure) }
             throw ExitCode(failure.isPermanent ? 0 : 1)
         }
     }
@@ -112,29 +119,34 @@ struct Models: ParsableCommand {
     }
 }
 
-/// Install or remove the launch-at-login LaunchAgent.
+/// Launch at login and the `parrot` command on PATH.
 struct Install: ParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Install or remove the launch-at-login LaunchAgent."
+        abstract: "Set up launch at login and the parrot command, or remove them."
     )
 
-    @Flag(name: .long, help: "Register parrot to start at login.")
+    @Flag(name: .long, help: "Start Parrot.app at login, and start it now.")
     var launchAtLogin: Bool = false
 
-    @Flag(name: .long, help: "Remove the launch-at-login agent.")
+    @Flag(name: .long, help: "Link /usr/local/bin/parrot to the executable in Parrot.app.")
+    var cli: Bool = false
+
+    @Flag(name: .long, help: "Stop starting at login, quit Parrot, and remove its logs.")
     var uninstall: Bool = false
 
     func run() throws {
-        if launchAtLogin == uninstall {
-            Log.error("specify exactly one of --launch-at-login or --uninstall")
+        if [launchAtLogin, cli, uninstall].filter({ $0 }).count != 1 {
+            Log.error("specify exactly one of --launch-at-login, --cli, or --uninstall")
             throw ExitCode(64)
         }
 
         try exiting {
             if uninstall {
-                try LaunchAgent.uninstall()
+                try LoginItem.uninstall()
+            } else if cli {
+                try CommandLineLink.installFromTerminal()
             } else {
-                try LaunchAgent.install()
+                try LoginItem.install()
             }
         }
     }
@@ -150,4 +162,14 @@ private func exiting(_ body: () throws -> Void) throws {
     }
 }
 
-Parrot.main()
+// Through the /usr/local/bin symlink, become the executable inside
+// Parrot.app so the bundle (version, login item) is found.
+AppBundle.resolveSymlinkedLaunch()
+
+if AppLaunch.launchedAsApp {
+    // Opened from Finder, `open`, or the login item: the menu-bar app.
+    MainActor.assumeIsolated { AppLaunch.prepare() }
+    Parrot.main(["run", "--skip-doctor"])
+} else {
+    Parrot.main()
+}

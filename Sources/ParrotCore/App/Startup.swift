@@ -4,10 +4,11 @@ import Foundation
 
 /// Why the daemon could not start.
 ///
-/// The LaunchAgent sets KeepAlive{SuccessfulExit: false}, so launchd relaunches
-/// on any nonzero exit. A permanent failure needs the user to act and a
-/// relaunch cannot fix it, so the entry point prints `message` once and exits
-/// 0. Anything else (warmup errors, a crash) exits nonzero and is restarted.
+/// A permanent failure needs the user to act and a relaunch cannot fix it,
+/// so the entry point prints `message` once and exits 0, and a supervisor
+/// that relaunches on nonzero exit leaves it alone. Anything else (warmup
+/// errors, a crash) exits nonzero. The login item (`SMAppService.mainApp`)
+/// starts Parrot once per login and does not relaunch it.
 public enum StartupFailure: Error {
     case microphoneDenied
     case unknownModel(String)
@@ -50,7 +51,7 @@ public enum StartupFailure: Error {
     private static func permanent(_ problem: String, fix: String) -> String {
         "\(problem)\n"
             + "  fix: \(fix), then restart parrot "
-            + "(`launchctl kickstart gui/\(getuid())/\(LaunchAgent.label)`, or log in again)."
+            + "(`open -a Parrot`, or log in again)."
     }
 }
 

@@ -19,7 +19,7 @@ enum Paths {
     /// mean a surprise multi-GB download.
     static var appSupport: URL { library("Application Support/parrot") }
 
-    /// `~/Library/Logs/parrot` — the LaunchAgent's stdout/stderr.
+    /// `~/Library/Logs/parrot` — the app's stdout/stderr.
     static var logs: URL { library("Logs/parrot") }
 
     /// `~/Library/Caches/parrot` — debug output such as `--dump-wav`.
@@ -31,10 +31,10 @@ enum Paths {
     /// `dictionary.json` in `config`: the user's terms, replacements and example sentences.
     static var dictionaryFile: URL { config.appendingPathComponent("dictionary.json") }
 
-    /// The daemon's stdout under launchd.
+    /// The app's stdout.
     static var daemonOutLog: URL { logs.appendingPathComponent("parrot.out.log") }
 
-    /// The daemon's stderr under launchd.
+    /// The app's stderr.
     static var daemonErrLog: URL { logs.appendingPathComponent("parrot.err.log") }
 
     /// Where `--dump-wav` writes the most recent capture.
@@ -45,8 +45,21 @@ enum Paths {
         library("LaunchAgents").appendingPathComponent("\(label).plist")
     }
 
-    /// The canonical install location of the `parrot` binary.
-    static let installedBinary = "/usr/local/bin/parrot"
+    /// The LaunchAgent that started pre-app versions at login. The app
+    /// removes it; `SMAppService` replaced it.
+    static var legacyLaunchAgentPlist: URL { launchAgentPlist(label: legacyLaunchAgentLabel) }
+
+    /// The old LaunchAgent's label.
+    static let legacyLaunchAgentLabel = "com.digimata.parrot"
+
+    /// Where the `parrot` command lives on `PATH`: a symlink to the executable
+    /// inside Parrot.app, or a plain binary from a pre-app install.
+    static let commandLineLink = URL(fileURLWithPath: "/usr/local/bin/parrot")
+
+    /// Held with `flock` by the running dictation loop, so the app and a
+    /// foreground `parrot` never both listen to the hotkey. In Application
+    /// Support, not Caches, because `parrot install --uninstall` removes Caches.
+    static var instanceLock: URL { appSupport.appendingPathComponent("parrot.lock") }
 
     /// `~/Documents`. The model cache must not resolve under it.
     static var documents: URL {
