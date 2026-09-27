@@ -6,12 +6,19 @@ Hold `fn`, speak, release. Your words appear at the cursor. On-device dictation 
 
 ## 1. Install
 
+Download [Parrot.dmg](https://github.com/humanitas-labs/parrot/releases/latest/download/Parrot.dmg), open it, and drag Parrot to Applications. Open Parrot from Applications. It asks for Accessibility first: turn on Parrot in System Settings → Privacy & Security → Accessibility, then open Parrot again and allow the microphone. The first start downloads the speech model (about 150 MB) before the parrot icon appears in the menu bar. Choose **Launch at login** in its menu to start it with your Mac.
+
+Requires macOS 14+ on Apple Silicon. Parrot is signed and notarized, so it opens without a Gatekeeper override, and the permissions you grant survive updates.
+
+From a terminal instead:
+
 ```sh
 curl -fsSL https://humanitas-labs.github.io/parrot/install.sh | sh
-parrot setup
 ```
 
-Requires macOS 14+ on Apple Silicon. `parrot setup` grants mic and accessibility permissions and downloads the model. Builds are unsigned, so the installer strips the quarantine attribute from `/usr/local/bin/parrot`.
+The installer checks the download against its published SHA-256, copies Parrot.app to `/Applications`, links `/usr/local/bin/parrot` to it, and opens it. To add the `parrot` command after installing from the DMG, run `/Applications/Parrot.app/Contents/MacOS/parrot install --cli`.
+
+**Upgrading from the command-line version.** Open the new Parrot once. It stops and removes the old LaunchAgent (`com.digimata.parrot`), keeps launch at login on if you had it, and asks before replacing the old `/usr/local/bin/parrot` binary with a link to the app. Your models, settings, and logs stay where they are. macOS asks for Microphone and Accessibility again, this time for Parrot instead of your terminal; you can remove the old `parrot` and terminal entries from those lists.
 
 ## 2. Usage
 
@@ -21,7 +28,7 @@ Requires macOS 14+ on Apple Silicon. `parrot setup` grants mic and accessibility
 
 If you switch apps or fields before the transcript is ready, it goes to the clipboard instead. If a password field has focus, the transcript is discarded.
 
-Run `parrot install --launch-at-login` to keep it running in the menu bar. It logs to `~/Library/Logs/parrot/`, readable only by you, and records timings and character counts, never what you said. If `fn` is mapped to input source or emoji, `parrot doctor` shows how to fix it.
+Choose **Launch at login** in the menu, or run `parrot install --launch-at-login`, to start Parrot when you log in. It logs to `~/Library/Logs/parrot/`, readable only by you, and records timings and character counts, never what you said. If `fn` is mapped to input source or emoji, `parrot doctor` shows how to fix it.
 
 ## 3. Dictionary
 
@@ -60,8 +67,9 @@ Edits apply on the next dictation, with no restart. If the file has a mistake, P
 | `parrot` | Run in the foreground (^C to quit) |
 | `parrot setup` | One-time setup: permissions and model download |
 | `parrot doctor` | Check permissions and the `fn` key setting |
-| `parrot install --launch-at-login` | Register a LaunchAgent |
-| `parrot install --uninstall` | Remove the LaunchAgent and its logs |
+| `parrot install --launch-at-login` | Start Parrot.app at login (a login item) |
+| `parrot install --cli` | Link `/usr/local/bin/parrot` to Parrot.app |
+| `parrot install --uninstall` | Stop launching at login, quit Parrot, remove its logs |
 | `parrot models list` | List available models |
 | `parrot models download <id>` | Pre-download a model |
 | `parrot --model whisper-large-v3-turbo` | Larger, multilingual model |
@@ -79,7 +87,11 @@ A single Swift executable: WhisperKit runs Whisper on the Apple Neural Engine vi
 swift build -c release
 .build/release/parrot --help
 swift test
+scripts/dev-install.sh      # build, sign, and install Parrot.app, and link the CLI
+scripts/make-dmg.sh 0.1.0   # signed, notarized DMG in dist/
 ```
+
+`dev-install.sh` signs with a Developer ID certificate from your keychain so macOS keeps the permission grants across rebuilds. Without one it signs ad hoc, and each build asks again.
 
 ## 7. License
 
