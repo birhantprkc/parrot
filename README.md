@@ -1,59 +1,52 @@
+<p align="center"><img src="docs/icon.png" width="96" alt="parrot"></p>
+
 # parrot
 
-A minimal macOS dictation daemon. Push-to-talk, on-device transcription, text inserted at the cursor.
+Hold `fn`, speak, release. Your words appear at the cursor. On-device dictation for macOS.
 
-## Install
+## 1. Install
 
 ```sh
 curl -fsSL https://digimata.github.io/parrot/install.sh | sh
-parrot setup                       # grants mic + accessibility, downloads the model
-parrot install --launch-at-login   # optional — runs in the background on login
+parrot setup
 ```
 
-**Requires:** macOS 14+ on Apple Silicon (M1 or newer). Transcription runs on the Apple Neural Engine via CoreML — so the installer refuses to run on Intel.
+Requires macOS 14+ on Apple Silicon. `parrot setup` grants mic and accessibility permissions and downloads the model. Builds are unsigned, so the installer strips the quarantine attribute from `/usr/local/bin/parrot`.
 
-The installer drops the binary in `/usr/local/bin/parrot`. Builds are unsigned for now, so the installer strips the quarantine xattr — once you've inspected the script you'll see exactly what it does.
+## 2. Usage
 
-## How to use
+1. Click into any text field.
+2. Hold `fn` and speak. A small pill at the bottom of the screen shows the mic is live.
+3. Release. The transcript is typed at the cursor, usually within 200–300 ms.
 
-1. **Run it.** Either `parrot install --launch-at-login` (daemonized, runs forever, lives in the menu bar), or `parrot` in any terminal tab.
-2. **Click into the text field you want to dictate into** — Messages, the address bar, a Slack thread, anywhere a cursor blinks.
-3. **Hold the `fn` key, speak, release.** A small pill appears at the bottom of the screen while the mic is hot.
-4. **The transcript types itself in at the cursor** when you release. Usually within 200-300ms.
+Run `parrot install --launch-at-login` to keep it running in the menu bar. If `fn` is mapped to input source or emoji, `parrot doctor` shows how to fix it.
 
-That's it. There is no record button, no stop button, no "send" — `fn` is the whole interface.
+## 3. CLI
 
-> **Note:** on most modern Macs the `fn` key is the bottom-left key. If yours is set to "Change input source" or "Show emoji & symbols," `parrot setup` will tell you how to flip it back to plain `fn`.
+| Command | What it does |
+|---|---|
+| `parrot` | Run in the foreground (^C to quit) |
+| `parrot setup` | One-time setup: permissions and model download |
+| `parrot doctor` | Check permissions and the `fn` key setting |
+| `parrot install --launch-at-login` | Register a LaunchAgent |
+| `parrot install --uninstall` | Remove the LaunchAgent |
+| `parrot models list` | List available models |
+| `parrot models download <id>` | Pre-download a model |
+| `parrot --model whisper-large-v3-turbo` | Larger, multilingual model |
+| `parrot --hotkey right-option` | Change the push-to-talk key |
+| `parrot --no-overlay` | Hide the recording pill |
 
-## CLI
+## 4. How it works
 
-```sh
-parrot                                 # run in the foreground (^C to quit)
-parrot setup                           # one-time setup: permissions + model download
-parrot install --launch-at-login       # register a LaunchAgent (background daemon)
-parrot install --uninstall             # remove the LaunchAgent
-parrot doctor                          # check permissions + fn key setting
-parrot models list                     # list available models
-parrot models download <id>            # pre-download a model
-parrot --model whisper-large-v3-turbo  # bigger, multilingual, slower first-run
-parrot --hotkey right-option           # change the push-to-talk key
-parrot --no-overlay                    # disable the bottom-of-screen pill
-```
+A single Swift executable: WhisperKit runs Whisper on the Apple Neural Engine via CoreML, AVAudioEngine captures the mic, a CGEventTap watches the hotkey, and CGEvent types the result at the cursor. See [docs/architecture.md](docs/architecture.md).
 
-## Stack
-
-- **Swift** — single SPM executable target
-- **WhisperKit** — Whisper inference via CoreML, ANE-accelerated
-- **AVAudioEngine** — mic capture
-- **CGEventTap** — global hotkey
-- **CGEvent** — text injection at cursor
-- **NSWindow** (borderless, click-through) — recording-indicator pill
-
-See [docs/architecture.md](docs/architecture.md) for design notes.
-
-## Build from source
+## 5. Build from source
 
 ```sh
 swift build -c release
 .build/release/parrot --help
 ```
+
+## 6. License
+
+[MIT](LICENSE)
