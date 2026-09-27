@@ -1,5 +1,7 @@
 import AppKit
+import ApplicationServices
 import ArgumentParser
+import AVFoundation
 import Foundation
 import WhisperKit
 
@@ -52,20 +54,36 @@ struct Run: ParsableCommand {
             }
         }
 
+        // Checks that retrying can't fix run before the model loads, so a
+        // failing start costs nothing and exits 0 (see permanentFailure).
         let chosenModel: TranscriptionModel
         if let id = model {
             guard let m = ModelRegistry.find(id) else {
-                FileHandle.standardError.write(Data("unknown model: \(id)\n".utf8))
-                FileHandle.standardError.write(Data("run `parrot models list` to see options.\n".utf8))
-                throw ExitCode(1)
+                throw permanentFailure("unknown model: \(id)", fix: "pick one from `parrot models list` and update --model")
             }
             chosenModel = m
         } else {
             guard let m = ModelRegistry.recommended() else {
-                FileHandle.standardError.write(Data("no models registered\n".utf8))
-                throw ExitCode(1)
+                throw permanentFailure("no models registered", fix: "reinstall parrot")
             }
             chosenModel = m
+        }
+
+        // No prompt here: prompting on every relaunch re-fires the system
+        // dialog. `parrot setup` is the only place that prompts.
+        if !AXIsProcessTrusted() {
+            throw permanentFailure("accessibility not granted", fix: "run `parrot setup`")
+        }
+
+        // .notDetermined is left to the first recording, which requests access.
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .denied, .restricted:
+            throw permanentFailure(
+                "microphone access denied",
+                fix: "run `parrot setup`, or enable parrot in System Settings → Privacy & Security → Microphone"
+            )
+        default:
+            break
         }
 
         // Don't look in ~/Documents for an old cache: under launchd that read
@@ -188,6 +206,19 @@ struct Run: ParsableCommand {
 
         FileHandle.standardError.write(Data("listening on fn hold · model: \(chosenModel.id) · ^C to quit\n".utf8))
         app.run()
+    }
+
+    /// A startup failure the user has to fix. The LaunchAgent's
+    /// KeepAlive{SuccessfulExit: false} relaunches on nonzero exit, and a
+    /// relaunch can't fix these, so print the fix once and exit 0. Crashes
+    /// and warmup errors still exit nonzero and get restarted.
+    private func permanentFailure(_ problem: String, fix: String) -> ExitCode {
+        FileHandle.standardError.write(Data((
+            "\(problem)\n"
+            + "  fix: \(fix), then restart parrot "
+            + "(`launchctl kickstart gui/\(getuid())/\(Install.label)`, or log in again).\n"
+        ).utf8))
+        return ExitCode(0)
     }
 }
 
