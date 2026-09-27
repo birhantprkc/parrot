@@ -13,7 +13,9 @@ public enum SetupFlow {
         print("  1. Accessibility — to detect the Fn key globally and inject text at the cursor.")
         print("  2. Microphone — to record audio while you hold Fn.")
         print()
-        print("These attach to your terminal app (Terminal/iTerm/Ghostty/etc.), not parrot itself.")
+        print("Granted here, they attach to your terminal app (Terminal/iTerm/Ghostty/etc.),")
+        print("which covers running `parrot` from this terminal. The launch-at-login daemon")
+        print("asks for its own on first start: allow Parrot when macOS prompts.")
         print()
 
         // Runs here, with the terminal's ~/Documents access; the daemon has none.

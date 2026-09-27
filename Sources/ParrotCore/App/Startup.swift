@@ -9,7 +9,6 @@ import Foundation
 /// relaunch cannot fix it, so the entry point prints `message` once and exits
 /// 0. Anything else (warmup errors, a crash) exits nonzero and is restarted.
 public enum StartupFailure: Error {
-    case accessibilityMissing
     case microphoneDenied
     case unknownModel(String)
     case noModelsRegistered
@@ -20,7 +19,7 @@ public enum StartupFailure: Error {
 
     public var isPermanent: Bool {
         switch self {
-        case .accessibilityMissing, .microphoneDenied, .unknownModel, .noModelsRegistered:
+        case .microphoneDenied, .unknownModel, .noModelsRegistered:
             return true
         case .checksFailed, .warmupFailed, .hotkeyUnavailable:
             return false
@@ -30,8 +29,6 @@ public enum StartupFailure: Error {
     /// The one message to print. Permanent failures name the exact fix.
     public var message: String {
         switch self {
-        case .accessibilityMissing:
-            return Self.permanent("accessibility not granted", fix: "run `parrot setup`")
         case .microphoneDenied:
             return Self.permanent(
                 "microphone access denied",
@@ -78,11 +75,8 @@ enum Startup {
 
         let model = try resolveModel(modelID)
 
-        // No prompt here: prompting on every relaunch re-fires the system
-        // dialog. `parrot setup` is the only place that prompts.
-        if !AXIsProcessTrusted() {
-            throw StartupFailure.accessibilityMissing
-        }
+        // Accessibility is not checked here. A missing grant is not a startup
+        // failure: the daemon asks for it once and waits (Daemon.startHotkey).
 
         // .notDetermined is requested asynchronously once the daemon starts
         // (MicrophoneAccess), and again on the first press if still undecided.

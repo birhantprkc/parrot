@@ -94,13 +94,8 @@ public enum Daemon {
         monitor.onHealthChange = { health in
             MainActor.assumeIsolated { menuBar.setHotkeyHealth(health) }
         }
-        do {
-            // HotkeyMonitor delivers events on the main queue.
-            try monitor.start { event in
-                MainActor.assumeIsolated { controller.handle(event) }
-            }
-        } catch {
-            throw StartupFailure.hotkeyUnavailable(error)
+        try startHotkey(monitor, menuBar: menuBar) { event in
+            controller.handle(event)
         }
 
         let sigint = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
@@ -112,7 +107,57 @@ public enum Daemon {
         sigint.resume()
         signal(SIGINT, SIG_IGN)
 
-        Log.info("listening on fn hold · model: \(model.id) · inject: \(options.injectMode.rawValue) · ^C to quit")
+        Log.info("model: \(model.id) · inject: \(options.injectMode.rawValue) · ^C to quit")
         app.run()
+    }
+
+    /// Starts the hotkey tap, or, without an Accessibility grant, asks for one
+    /// and waits. The grant belongs to this binary, not the terminal that ran
+    /// `parrot setup`, so the launch-at-login daemon has to ask for itself.
+    /// It asks once per launch and keeps running: exiting would make launchd
+    /// relaunch it and re-fire the prompt. Polling picks up the grant, so no
+    /// restart is needed.
+    @MainActor
+    private static func startHotkey(
+        _ monitor: HotkeyMonitor,
+        menuBar: MenuBarController,
+        onEvent: @escaping @MainActor (HotkeyMonitor.Event) -> Void
+    ) throws {
+        func start() throws {
+            do {
+                // HotkeyMonitor delivers events on the main queue.
+                try monitor.start { event in
+                    MainActor.assumeIsolated { onEvent(event) }
+                }
+            } catch {
+                throw StartupFailure.hotkeyUnavailable(error)
+            }
+            menuBar.setHotkeyHealth(.ok)
+            Log.info("listening on fn hold")
+        }
+
+        if AXIsProcessTrusted() {
+            try start()
+            return
+        }
+
+        Log.info("accessibility not granted; asking once and waiting (System Settings → Privacy & Security → Accessibility → parrot)")
+        menuBar.setHotkeyHealth(.accessibilityMissing)
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+
+        Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { timer in
+            MainActor.assumeIsolated {
+                guard AXIsProcessTrusted() else { return }
+                timer.invalidate()
+                Log.info("accessibility granted")
+                do {
+                    try start()
+                } catch {
+                    Log.error(StartupFailure.hotkeyUnavailable(error).message)
+                    menuBar.setHotkeyHealth(.tapDisabled)
+                }
+            }
+        }
     }
 }

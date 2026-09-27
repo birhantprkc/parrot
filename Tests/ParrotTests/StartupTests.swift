@@ -5,7 +5,6 @@ final class StartupTests: XCTestCase {
     private struct Boom: Error {}
 
     func testUserActionFailuresArePermanent() {
-        XCTAssertTrue(StartupFailure.accessibilityMissing.isPermanent)
         XCTAssertTrue(StartupFailure.microphoneDenied.isPermanent)
         XCTAssertTrue(StartupFailure.unknownModel("bogus").isPermanent)
         XCTAssertTrue(StartupFailure.noModelsRegistered.isPermanent)
@@ -19,7 +18,7 @@ final class StartupTests: XCTestCase {
 
     func testPermanentMessagesNameTheFixAndRestart() {
         let failures: [StartupFailure] = [
-            .accessibilityMissing, .microphoneDenied, .unknownModel("bogus"), .noModelsRegistered,
+            .microphoneDenied, .unknownModel("bogus"), .noModelsRegistered,
         ]
         for failure in failures {
             XCTAssertTrue(failure.message.contains("\n  fix: "), failure.message)

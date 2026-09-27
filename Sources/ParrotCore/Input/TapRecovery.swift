@@ -9,6 +9,8 @@ enum HotkeyHealth: Equatable {
     case secureInputActive
     /// Re-enabling keeps failing for another reason.
     case tapDisabled
+    /// This process has no Accessibility grant yet; the tap cannot exist.
+    case accessibilityMissing
 
     /// The menu bar status line for a degraded tap, or nil when healthy.
     var statusText: String? {
@@ -16,6 +18,7 @@ enum HotkeyHealth: Equatable {
         case .ok: return nil
         case .secureInputActive: return "hotkey unavailable, secure input active"
         case .tapDisabled: return "hotkey tap disabled"
+        case .accessibilityMissing: return "grant Accessibility to start"
         }
     }
 

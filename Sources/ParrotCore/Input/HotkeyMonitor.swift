@@ -50,11 +50,9 @@ final class HotkeyMonitor {
     func start(onEvent: @escaping (Event) -> Void) throws {
         self.onEvent = onEvent
 
-        // Check without prompting. If the daemon prompts on every start,
-        // launchd's KeepAlive restarts it after a denial and the prompt
-        // re-fires forever. Run `parrot setup` to get the one-time prompt.
+        // The caller waits for the grant before starting (Daemon.startHotkey);
+        // this is a guard, not the place that asks.
         if !AXIsProcessTrusted() {
-            Log.error("accessibility not granted — run `parrot setup` to grant access, then relaunch.")
             throw HotkeyError.tapCreateFailed
         }
 

@@ -166,7 +166,7 @@ Uninstall removes logs and caches. It leaves config and models, so a reinstall k
 
 ## 7. Startup and failure
 
-`Startup` runs its checks before loading a model: Accessibility, microphone authorization, and the selected model id. Each failure is a `StartupFailure` with `isPermanent`: missing Accessibility, denied microphone, an unknown model, and no registered models are permanent; failed checks, warmup, and an unavailable hotkey are not. A permanent failure prints one actionable message and exits 0, so launchd does not relaunch into it. A crash or transient failure exits nonzero. This rule lives in one place, `Run` in `main.swift`.
+`Startup` runs its checks before loading a model: microphone authorization and the selected model id. Each failure is a `StartupFailure` with `isPermanent`: denied microphone, an unknown model, and no registered models are permanent; failed checks, warmup, and an unavailable hotkey are not. A permanent failure prints one actionable message and exits 0, so launchd does not relaunch into it. A crash or transient failure exits nonzero. This rule lives in one place, `Run` in `main.swift`.
 
 ## 8. Rules
 
@@ -182,7 +182,7 @@ Uninstall removes logs and caches. It leaves config and models, so a reinstall k
 
 Parrot needs Microphone and Accessibility. macOS keys both grants to the app's code identity. With a Developer ID signature and a stable bundle identifier, grants survive updates. With an ad-hoc signature, each new build is a new identity, and the grant silently stops applying. That is why the signed bundle matters, and why `scripts/dev-install.sh` signs local builds with the Developer ID certificate.
 
-`parrot setup` shows the Accessibility prompt; the running app only checks Accessibility, because re-prompting on every relaunch re-fires the system dialog. The microphone is different: when access is not yet decided, the running app requests it once at startup, so the first launch at login can be granted without a terminal.
+A grant belongs to the process that asked: `parrot setup` grants the terminal, which covers foreground runs, but the launch-at-login daemon needs its own. So the daemon asks for itself. Without Accessibility it shows the prompt once, keeps running with "grant Accessibility to start" in the menu bar, and starts the hotkey as soon as the grant appears; it never exits over it, because an exit would make launchd relaunch it and re-fire the prompt. When microphone access is not yet decided, it requests that once at startup.
 
 ## 10. Decision log
 

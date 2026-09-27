@@ -21,7 +21,7 @@ macOS keys TCC grants to the code identity. Parrot was distributed ad-hoc signed
 
 - Changing the bundle ID or signing team resets every user's permission grants; treat it as a breaking change.
 - Release builds need the Developer ID certificate and notarization credentials in CI; local builds use the `parrot-notary` keychain profile.
-- `parrot setup` remains the only command that shows permission prompts.
+- The running app asks for its own grants on first start and waits for them; it never exits over a missing Accessibility grant.
 
 ## 4. When to Revisit
 
