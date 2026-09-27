@@ -9,3 +9,6 @@
 
 # local planning notes
 .plan/
+
+# journal auto-rendered views (regenerate with `journal`)
+.journal/
