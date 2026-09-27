@@ -124,8 +124,8 @@ HotkeyMonitor ──flags──▶ Gesture ──start/stop──▶ DictationCo
                                   DictionaryProcessor, later others
                                                      │ Transcript
                                                      ▼
-                              delivery: TextInjector if focus is unchanged and editable,
-                                        otherwise nothing is inserted
+                              delivery: paste at the cursor if focus is unchanged;
+                                        clipboard if focus moved; discard in a password field
                                                      │
                                                      ▼
                               DictationObservers: overlay, menu bar, stats
