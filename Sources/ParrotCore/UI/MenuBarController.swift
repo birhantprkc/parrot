@@ -9,7 +9,7 @@ import AppKit
 /// the menu.
 @MainActor
 final class MenuBarController {
-    private static let idleStatus = "idle · hold fn to dictate"
+    private static let readyStatus = "idle · hold fn to dictate"
 
     private let statusItem: NSStatusItem
     /// Slot: what the dictation loop is doing. Driven as a `DictationObserver`.
@@ -21,13 +21,19 @@ final class MenuBarController {
     /// Slot: quits parrot.
     let quitItem: NSMenuItem
 
+    /// A degraded hotkey tap replaces the idle line, so the menu bar does not
+    /// claim fn works when it does not (#37).
+    private var hotkeyHealth: HotkeyHealth = .ok
+    private var isIdle = true
+    private var idleStatus: String { hotkeyHealth.statusText ?? Self.readyStatus }
+
     init(modelID: String) {
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         let menu = NSMenu()
         menu.autoenablesItems = false
 
-        statusLine = NSMenuItem(title: Self.idleStatus, action: nil, keyEquivalent: "")
+        statusLine = NSMenuItem(title: Self.readyStatus, action: nil, keyEquivalent: "")
         statusLine.isEnabled = false
         menu.addItem(statusLine)
 
@@ -55,6 +61,11 @@ final class MenuBarController {
 
     func setStatus(_ text: String) {
         statusLine.title = text
+    }
+
+    func setHotkeyHealth(_ health: HotkeyHealth) {
+        hotkeyHealth = health
+        if isIdle { setStatus(idleStatus) }
     }
 
     func setModel(_ modelID: String) {
@@ -99,18 +110,22 @@ final class MenuBarController {
 
 extension MenuBarController: DictationObserver {
     func dictationStarted() {
+        isIdle = false
         setStatus("● recording")
     }
 
     func dictationTranscribing() {
+        isIdle = false
         setStatus("transcribing…")
     }
 
     func dictationFinished(_ result: DictationResult) {
-        setStatus(Self.idleStatus)
+        isIdle = true
+        setStatus(idleStatus)
     }
 
     func dictationFailed(_ error: Error) {
-        setStatus(Self.idleStatus)
+        isIdle = true
+        setStatus(idleStatus)
     }
 }

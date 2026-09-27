@@ -74,6 +74,10 @@ public enum Daemon {
             dumpWav: options.dumpWav
         )
 
+        // HotkeyMonitor reports health on the main thread.
+        monitor.onHealthChange = { health in
+            MainActor.assumeIsolated { menuBar.setHotkeyHealth(health) }
+        }
         do {
             // HotkeyMonitor delivers events on the main queue.
             try monitor.start { event in

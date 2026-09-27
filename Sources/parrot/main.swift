@@ -22,7 +22,7 @@ struct Run: ParsableCommand {
     @Flag(name: .long, help: "Skip permission checks at startup.")
     var skipDoctor: Bool = false
 
-    @Flag(name: .long, help: "Print every keyboard event the tap sees (debug).")
+    @Flag(name: .long, help: "Print each modifier change the hotkey tap sees (debug).")
     var debugHotkey: Bool = false
 
     @Flag(name: .long, help: "Write each capture to ~/Library/Caches/parrot/last-capture.wav for inspection.")
