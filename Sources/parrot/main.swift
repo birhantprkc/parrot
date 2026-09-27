@@ -106,9 +106,7 @@ struct Install: ParsableCommand {
 
     func run() throws {
         if launchAtLogin == uninstall {
-            FileHandle.standardError.write(Data(
-                "specify exactly one of --launch-at-login or --uninstall\n".utf8
-            ))
+            Log.error("specify exactly one of --launch-at-login or --uninstall")
             throw ExitCode(64)
         }
 

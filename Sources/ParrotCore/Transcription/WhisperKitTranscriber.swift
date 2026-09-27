@@ -19,7 +19,7 @@ actor WhisperKitTranscriber: Transcriber {
         guard let whisperKitID = model.whisperKitID else {
             throw TranscriberError.missingEngineID
         }
-        FileHandle.standardError.write(Data("loading \(model.id)...\n".utf8))
+        Log.info("loading \(model.id)...")
         // Explicit downloadBase: the HubApi default is ~/Documents/huggingface,
         // which the launchd daemon can't read and iCloud may evict. The
         // tokenizer folder follows downloadBase.
@@ -32,7 +32,7 @@ actor WhisperKitTranscriber: Transcriber {
             load: true
         )
         pipeline = try await WhisperKit(config)
-        FileHandle.standardError.write(Data("✓ \(model.id) ready\n".utf8))
+        Log.info("✓ \(model.id) ready")
     }
 
     func transcribe(_ audio: [Float]) async throws -> String {
@@ -94,7 +94,7 @@ extension WhisperKitTranscriber {
         do {
             new = try Paths.prepareDirectory(Paths.appSupport)
         } catch {
-            FileHandle.standardError.write(Data("warning: model migration skipped: \(error)\n".utf8))
+            Log.warning("model migration skipped: \(error)")
             return
         }
 
@@ -123,7 +123,7 @@ extension WhisperKitTranscriber {
                 }
                 print("✓ moved \(model.id) to \(new.path)")
             } catch {
-                FileHandle.standardError.write(Data("warning: couldn't move \(model.id): \(error)\n".utf8))
+                Log.warning("couldn't move \(model.id): \(error)")
             }
         }
 

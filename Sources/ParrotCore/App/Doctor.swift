@@ -30,7 +30,7 @@ public enum DoctorReport {
     static func checkModelCache() -> Check {
         let name = "model cache (\(Paths.appSupport.path))"
         let resolved = Paths.appSupport.resolvingSymlinksInPath().path
-        let documents = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents").path
+        let documents = Paths.documents.path
         if resolved.hasPrefix(documents + "/") || resolved.contains("/Library/Mobile Documents/") {
             return Check(
                 name: name,

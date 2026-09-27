@@ -31,17 +31,15 @@ public enum Daemon {
 
         // Agents installed before 0.0.6 log to /tmp until the plist is rewritten.
         if Paths.legacyTmpFiles.contains(where: { FileManager.default.fileExists(atPath: $0) }) {
-            FileHandle.standardError.write(Data(
-                "note: old parrot logs found in /tmp; run `parrot install --launch-at-login` again to remove them and log privately.\n".utf8
-            ))
+            Log.info("note: old parrot logs found in /tmp; run `parrot install --launch-at-login` again to remove them and log privately.")
         }
 
         if !skipDoctor {
             let checks = DoctorReport.run()
             if !DoctorReport.allOK(checks) {
-                FileHandle.standardError.write(Data("startup checks failed:\n".utf8))
+                Log.error("startup checks failed:")
                 DoctorReport.print(checks)
-                FileHandle.standardError.write(Data("\nfix the above or pass --skip-doctor\n".utf8))
+                Log.error("\nfix the above or pass --skip-doctor")
                 throw SilentExit(1)
             }
         }
@@ -81,9 +79,7 @@ public enum Daemon {
         // Don't look in ~/Documents for an old cache: under launchd that read
         // is denied or prompts. Name the command that can migrate instead.
         if !WhisperKitTranscriber.isCached(chosenModel) {
-            FileHandle.standardError.write(Data(
-                "\(chosenModel.id) not in \(Paths.appSupport.path), downloading. to reuse a copy from ~/Documents/huggingface, run `parrot setup` instead.\n".utf8
-            ))
+            Log.info("\(chosenModel.id) not in \(Paths.appSupport.path), downloading. to reuse a copy from ~/Documents/huggingface, run `parrot setup` instead.")
         }
 
         let transcriber = WhisperKitTranscriber(model: chosenModel)
@@ -99,7 +95,7 @@ public enum Daemon {
         }
         warmupSemaphore.wait()
         if let warmupError {
-            FileHandle.standardError.write(Data("warmup failed: \(warmupError)\n".utf8))
+            Log.error("warmup failed: \(warmupError)")
             throw SilentExit(1)
         }
 
@@ -121,13 +117,13 @@ public enum Daemon {
                 case .pressed:
                     do {
                         try capture.start()
-                        FileHandle.standardError.write(Data("● recording\n".utf8))
+                        Log.info("● recording")
                         MainActor.assumeIsolated {
                             overlay?.show(.recording)
                             menuBar.setRecording(true)
                         }
                     } catch {
-                        FileHandle.standardError.write(Data("capture failed: \(error)\n".utf8))
+                        Log.error("capture failed: \(error)")
                     }
                 case .released:
                     let samples = capture.stop()
@@ -137,17 +133,15 @@ public enum Daemon {
                     }
                     let seconds = Double(samples.count) / AudioCapture.targetSampleRate
                     let rms = computeRMS(samples)
-                    FileHandle.standardError.write(Data(
-                        String(format: "○ captured %.2fs · rms %.3f\n", seconds, rms).utf8
-                    ))
+                    Log.info(String(format: "○ captured %.2fs · rms %.3f", seconds, rms))
                     if dumpWav, !samples.isEmpty {
                         do {
-                            let dir = try Paths.prepareDirectory(Paths.caches)
-                            let path = try Paths.preparePrivateFile(dir.appendingPathComponent("last-capture.wav")).path
+                            try Paths.prepareDirectory(Paths.caches)
+                            let path = try Paths.preparePrivateFile(Paths.dumpWav).path
                             try WAVWriter.write(samples: samples, sampleRate: 16_000, to: path)
-                            FileHandle.standardError.write(Data("  wrote \(path)\n".utf8))
+                            Log.info("  wrote \(path)")
                         } catch {
-                            FileHandle.standardError.write(Data("  wav write failed: \(error)\n".utf8))
+                            Log.error("  wav write failed: \(error)")
                         }
                     }
                     guard !samples.isEmpty else {
@@ -163,16 +157,14 @@ public enum Daemon {
                             let text = try await transcriber.transcribe(samples)
                             let elapsed = Date().timeIntervalSince(started)
                             // Never log the transcript itself: the agent's log is a file on disk.
-                            FileHandle.standardError.write(Data(
-                                String(format: "→ %.2fs · %d chars\n", elapsed, text.count).utf8
-                            ))
+                            Log.info(String(format: "→ %.2fs · %d chars", elapsed, text.count))
                             await MainActor.run {
                                 TextInjector.inject(text)
                                 overlay?.hide()
                                 menuBar.setRecording(false)
                             }
                         } catch {
-                            FileHandle.standardError.write(Data("transcription failed: \(error)\n".utf8))
+                            Log.error("transcription failed: \(error)")
                             await MainActor.run {
                                 overlay?.hide()
                                 menuBar.setRecording(false)
@@ -182,21 +174,21 @@ public enum Daemon {
                 }
             }
         } catch {
-            FileHandle.standardError.write(Data("failed to register hotkey tap: \(error)\n".utf8))
-            FileHandle.standardError.write(Data("run `parrot setup` to configure permissions.\n".utf8))
+            Log.error("failed to register hotkey tap: \(error)")
+            Log.error("run `parrot setup` to configure permissions.")
             throw SilentExit(1)
         }
 
         let sigint = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
         sigint.setEventHandler {
-            FileHandle.standardError.write(Data("\nshutting down\n".utf8))
+            Log.info("\nshutting down")
             monitor.stop()
             NSApp.terminate(nil)
         }
         sigint.resume()
         signal(SIGINT, SIG_IGN)
 
-        FileHandle.standardError.write(Data("listening on fn hold · model: \(chosenModel.id) · ^C to quit\n".utf8))
+        Log.info("listening on fn hold · model: \(chosenModel.id) · ^C to quit")
         app.run()
     }
 
@@ -205,11 +197,11 @@ public enum Daemon {
     /// relaunch can't fix these, so print the fix once and exit 0. Crashes
     /// and warmup errors still exit nonzero and get restarted.
     private static func permanentFailure(_ problem: String, fix: String) -> SilentExit {
-        FileHandle.standardError.write(Data((
+        Log.error(
             "\(problem)\n"
             + "  fix: \(fix), then restart parrot "
-            + "(`launchctl kickstart gui/\(getuid())/\(LaunchAgent.label)`, or log in again).\n"
-        ).utf8))
+            + "(`launchctl kickstart gui/\(getuid())/\(LaunchAgent.label)`, or log in again)."
+        )
         return SilentExit(0)
     }
 }

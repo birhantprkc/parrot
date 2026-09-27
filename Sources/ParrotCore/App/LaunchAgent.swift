@@ -21,15 +21,9 @@ public enum LaunchAgent {
 
     static let label = "com.digimata.parrot"
 
-    private static var plistURL: URL {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        return home
-            .appendingPathComponent("Library/LaunchAgents", isDirectory: true)
-            .appendingPathComponent("\(Self.label).plist")
-    }
-
-    private static var outLog: URL { Paths.logs.appendingPathComponent("parrot.out.log") }
-    private static var errLog: URL { Paths.logs.appendingPathComponent("parrot.err.log") }
+    private static var plistURL: URL { Paths.launchAgentPlist(label: label) }
+    private static var outLog: URL { Paths.daemonOutLog }
+    private static var errLog: URL { Paths.daemonErrLog }
 
     private static func writeAgent() throws {
         let binary = try resolveBinaryPath()
@@ -74,9 +68,7 @@ public enum LaunchAgent {
         removeLegacyTmpFiles()
         let result = runLaunchctl(["bootstrap", "gui/\(uid())", url.path])
         if result.status != 0 {
-            FileHandle.standardError.write(Data(
-                "warning: launchctl bootstrap exited \(result.status):\n\(result.stderr)\n".utf8
-            ))
+            Log.warning("launchctl bootstrap exited \(result.status):\n\(result.stderr)")
         }
 
         print("✓ launch-at-login installed")
@@ -112,7 +104,7 @@ public enum LaunchAgent {
                 try FileManager.default.removeItem(atPath: path)
                 print("  removed \(path)")
             } catch {
-                FileHandle.standardError.write(Data("warning: couldn't remove \(path): \(error)\n".utf8))
+                Log.warning("couldn't remove \(path): \(error)")
             }
         }
     }
@@ -120,21 +112,17 @@ public enum LaunchAgent {
     private static func resolveBinaryPath() throws -> String {
         // /usr/local/bin/parrot is the canonical install path. Honor a real
         // location if running from elsewhere (e.g. dev).
-        let candidate = "/usr/local/bin/parrot"
+        let candidate = Paths.installedBinary
         if FileManager.default.isExecutableFile(atPath: candidate) {
             return candidate
         }
         // Fall back to the running executable's resolved path.
         let argv0 = CommandLine.arguments.first ?? "parrot"
         if argv0.hasPrefix("/"), FileManager.default.isExecutableFile(atPath: argv0) {
-            FileHandle.standardError.write(Data(
-                "note: /usr/local/bin/parrot not found; using \(argv0)\n".utf8
-            ))
+            Log.info("note: \(candidate) not found; using \(argv0)")
             return argv0
         }
-        FileHandle.standardError.write(Data(
-            "couldn't locate the parrot binary. install it to /usr/local/bin/parrot first.\n".utf8
-        ))
+        Log.error("couldn't locate the parrot binary. install it to \(candidate) first.")
         throw SilentExit(1)
     }
 

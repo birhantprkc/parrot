@@ -14,6 +14,34 @@ enum Paths {
     /// `~/Library/Caches/parrot` — debug output such as `--dump-wav`.
     static var caches: URL { library("Caches/parrot") }
 
+    /// `settings.json` in `appSupport`. Declared for the settings store; not read or written yet.
+    static var settingsFile: URL { appSupport.appendingPathComponent("settings.json") }
+
+    /// `dictionary.json` in `appSupport`. Declared for the dictionary; not read or written yet.
+    static var dictionaryFile: URL { appSupport.appendingPathComponent("dictionary.json") }
+
+    /// The daemon's stdout under launchd.
+    static var daemonOutLog: URL { logs.appendingPathComponent("parrot.out.log") }
+
+    /// The daemon's stderr under launchd.
+    static var daemonErrLog: URL { logs.appendingPathComponent("parrot.err.log") }
+
+    /// Where `--dump-wav` writes the most recent capture.
+    static var dumpWav: URL { caches.appendingPathComponent("last-capture.wav") }
+
+    /// `~/Library/LaunchAgents/<label>.plist`.
+    static func launchAgentPlist(label: String) -> URL {
+        library("LaunchAgents").appendingPathComponent("\(label).plist")
+    }
+
+    /// The canonical install location of the `parrot` binary.
+    static let installedBinary = "/usr/local/bin/parrot"
+
+    /// `~/Documents`. The model cache must not resolve under it.
+    static var documents: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents")
+    }
+
     /// Pre-0.0.6 files that held transcripts and audio in world-readable /tmp.
     static let legacyTmpFiles = ["/tmp/parrot.out.log", "/tmp/parrot.err.log", "/tmp/parrot-last.wav"]
 

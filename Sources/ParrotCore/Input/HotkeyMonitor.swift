@@ -30,9 +30,7 @@ final class HotkeyMonitor {
         // launchd's KeepAlive restarts it after a denial and the prompt
         // re-fires forever. Run `parrot setup` to get the one-time prompt.
         if !AXIsProcessTrusted() {
-            FileHandle.standardError.write(Data(
-                "accessibility not granted — run `parrot setup` to grant access, then relaunch.\n".utf8
-            ))
+            Log.error("accessibility not granted — run `parrot setup` to grant access, then relaunch.")
             throw HotkeyError.tapCreateFailed
         }
 
@@ -81,11 +79,7 @@ final class HotkeyMonitor {
         if debug {
             let flags = event.flags
             let keycode = event.getIntegerValueField(.keyboardEventKeycode)
-            FileHandle.standardError.write(
-                Data(
-                    "  [debug] type=\(type.rawValue) keycode=\(keycode) flags=\(String(flags.rawValue, radix: 16))\n"
-                        .utf8
-                ))
+            Log.info("  [debug] type=\(type.rawValue) keycode=\(keycode) flags=\(String(flags.rawValue, radix: 16))")
         }
         guard type == .flagsChanged else { return }
         let pressed = event.flags.contains(mask)
