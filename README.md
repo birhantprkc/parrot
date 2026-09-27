@@ -7,7 +7,7 @@ Hold `fn`, speak, release. Your words appear at the cursor. On-device dictation 
 ## 1. Install
 
 ```sh
-curl -fsSL https://digimata.github.io/parrot/install.sh | sh
+curl -fsSL https://humanitas-labs.github.io/parrot/install.sh | sh
 parrot setup
 ```
 
