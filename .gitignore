@@ -6,3 +6,6 @@
 
 # kdb auto-rendered task index (regenerate with `kdb render`)
 .tasks/
+
+# local planning notes
+.plan/
