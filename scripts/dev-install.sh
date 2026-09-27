@@ -12,8 +12,9 @@
 set -euo pipefail
 
 IDENTITY="${PARROT_SIGN_IDENTITY:-Developer ID Application: Andrew Jones (T4H3QX65LN)}"
-IDENTIFIER="${PARROT_IDENTIFIER:-com.digimata.parrot}"
+IDENTIFIER="${PARROT_IDENTIFIER:-com.humanitas.parrot}"
 INSTALL_DIR="${PARROT_INSTALL_DIR:-/usr/local/bin}"
+# The LaunchAgent label keeps its old name until #40 replaces the agent with SMAppService.
 LABEL="com.digimata.parrot"
 
 cd "$(dirname "$0")/.."
