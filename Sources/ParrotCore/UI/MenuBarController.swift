@@ -5,7 +5,7 @@ import AppKit
 /// (since we run as `.accessory` — no dock icon, no main window).
 ///
 /// The menu has named slots, top to bottom: `statusLine`, `modelLine`,
-/// `settingsItem`, `quitItem`. Features update a slot rather than rebuilding
+/// `settingsItem`, `launchAtLoginItem`, `quitItem`. Features update a slot rather than rebuilding
 /// the menu.
 @MainActor
 final class MenuBarController {
@@ -18,6 +18,10 @@ final class MenuBarController {
     let modelLine: NSMenuItem
     /// Slot: opens the settings window. Disabled until that window exists (#41).
     let settingsItem: NSMenuItem
+    /// Slot: launch at login through `SMAppService`, checked while on.
+    /// Hidden outside Parrot.app, where there is no bundle to register.
+    let launchAtLoginItem: NSMenuItem
+    private let launchAtLogin = LaunchAtLoginToggle()
     /// Slot: quits parrot.
     let quitItem: NSMenuItem
 
@@ -46,6 +50,10 @@ final class MenuBarController {
         settingsItem = NSMenuItem(title: "Settings…", action: nil, keyEquivalent: ",")
         settingsItem.isEnabled = false
         menu.addItem(settingsItem)
+
+        launchAtLoginItem = launchAtLogin.item
+        menu.addItem(launchAtLoginItem)
+        menu.delegate = launchAtLogin
 
         quitItem = NSMenuItem(
             title: "Quit parrot",
@@ -105,6 +113,40 @@ final class MenuBarController {
 
     @objc private func quitClicked() {
         NSApp.terminate(nil)
+    }
+}
+
+/// Target of the "Launch at login" item. Also the menu's delegate, to
+/// re-read the state each time the menu opens: the user can change it in
+/// System Settings while Parrot runs.
+@MainActor
+private final class LaunchAtLoginToggle: NSObject, NSMenuDelegate {
+    let item = NSMenuItem(title: "Launch at login", action: nil, keyEquivalent: "")
+
+    override init() {
+        super.init()
+        item.action = #selector(toggle)
+        item.target = self
+        item.isHidden = !LoginItem.isAvailable
+        refresh()
+    }
+
+    func menuWillOpen(_ menu: NSMenu) {
+        refresh()
+    }
+
+    private func refresh() {
+        guard LoginItem.isAvailable else { return }
+        item.state = LoginItem.isEnabled ? .on : .off
+    }
+
+    @objc private func toggle() {
+        do {
+            try LoginItem.setEnabled(!LoginItem.isEnabled)
+        } catch {
+            Log.warning("couldn't change launch at login: \(error)")
+        }
+        refresh()
     }
 }
 
