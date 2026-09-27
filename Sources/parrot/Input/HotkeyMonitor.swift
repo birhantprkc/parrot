@@ -26,11 +26,12 @@ final class HotkeyMonitor {
     func start(onEvent: @escaping (Event) -> Void) throws {
         self.onEvent = onEvent
 
-        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        let trusted = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
-        if !trusted {
+        // Check without prompting. If the daemon prompts on every start,
+        // launchd's KeepAlive restarts it after a denial and the prompt
+        // re-fires forever. Run `parrot setup` to get the one-time prompt.
+        if !AXIsProcessTrusted() {
             FileHandle.standardError.write(Data(
-                "accessibility not granted — system prompt opened. Grant access, then quit and relaunch parrot.\n".utf8
+                "accessibility not granted — run `parrot setup` to grant access, then relaunch.\n".utf8
             ))
             throw HotkeyError.tapCreateFailed
         }
