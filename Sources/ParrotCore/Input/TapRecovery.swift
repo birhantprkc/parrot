@@ -11,6 +11,10 @@ enum HotkeyHealth: Equatable {
     case tapDisabled
     /// This process has no Accessibility grant yet; the tap cannot exist.
     case accessibilityMissing
+    /// The model is loading (or downloading on first run); the tap starts after.
+    case modelLoading
+    /// The model failed to load; a retry is scheduled.
+    case modelFailed
 
     /// The menu bar status line for a degraded tap, or nil when healthy.
     var statusText: String? {
@@ -19,6 +23,8 @@ enum HotkeyHealth: Equatable {
         case .secureInputActive: return "hotkey unavailable, secure input active"
         case .tapDisabled: return "hotkey tap disabled"
         case .accessibilityMissing: return "grant Accessibility to start"
+        case .modelLoading: return "loading model…"
+        case .modelFailed: return "couldn't load the model, retrying"
         }
     }
 

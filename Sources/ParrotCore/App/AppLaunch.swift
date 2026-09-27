@@ -212,13 +212,6 @@ public enum AppLaunch {
         guard isApp else { return }
         NSApplication.shared.setActivationPolicy(.accessory)
         let (title, message, pane) = appMessage(for: failure)
-        if case .accessibilityMissing = failure {
-            // Lists Parrot in the Accessibility pane and shows the system
-            // prompt, which names Parrot. The app role has no terminal to run
-            // `parrot setup` from, and no KeepAlive relaunch to re-prompt.
-            let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-            _ = AXIsProcessTrustedWithOptions([promptKey: true] as CFDictionary)
-        }
         if let pane {
             if alert(title, message, buttons: ["Open System Settings", "Quit"]) == .alertFirstButtonReturn,
                let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
@@ -233,13 +226,6 @@ public enum AppLaunch {
     /// dialog. Permission failures get app wording; the rest reuse the CLI's.
     static func appMessage(for failure: StartupFailure) -> (String, String, String?) {
         switch failure {
-        case .accessibilityMissing:
-            return (
-                "Parrot needs Accessibility",
-                "Parrot uses Accessibility to notice the fn key and paste your words. "
-                    + "Turn on Parrot in System Settings → Privacy & Security → Accessibility, then open Parrot again.",
-                "Privacy_Accessibility"
-            )
         case .microphoneDenied:
             return (
                 "Parrot needs the microphone",

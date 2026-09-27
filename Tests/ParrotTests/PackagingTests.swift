@@ -25,11 +25,10 @@ final class PackagingTests: XCTestCase {
     }
 
     func testPermissionFailuresPointAtTheirPane() {
-        XCTAssertEqual(AppLaunch.appMessage(for: .accessibilityMissing).2, "Privacy_Accessibility")
         XCTAssertEqual(AppLaunch.appMessage(for: .microphoneDenied).2, "Privacy_Microphone")
         XCTAssertNil(AppLaunch.appMessage(for: .noModelsRegistered).2)
         // The app's wording never sends the user to a terminal.
-        for failure in [StartupFailure.accessibilityMissing, .microphoneDenied] {
+        for failure in [StartupFailure.microphoneDenied] {
             XCTAssertFalse(AppLaunch.appMessage(for: failure).1.contains("parrot setup"))
         }
     }

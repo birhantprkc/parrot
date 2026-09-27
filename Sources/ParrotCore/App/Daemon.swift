@@ -28,33 +28,20 @@ public struct DaemonOptions {
     }
 }
 
-/// The dictation daemon (`parrot`, `parrot run`): startup checks, model
-/// warmup, then the AppKit run loop. Does not return once running.
+/// The dictation daemon (`parrot`, `parrot run`): startup checks, then the
+/// AppKit run loop with the model loading behind the menu-bar icon. Does not
+/// return once running.
 public enum Daemon {
     /// Throws `StartupFailure` if the daemon cannot start.
     public static func run(_ options: DaemonOptions) throws {
         let chosenModel = try Startup.check(modelID: options.model, skipDoctor: options.skipDoctor)
 
         // Startup has already exited on denied access. If the system has never
-        // asked, ask now, without waiting, so the prompt is answered during
-        // warmup rather than on the first press.
+        // asked, ask now, without waiting, so the prompt is answered while the
+        // model loads rather than on the first press.
         MicrophoneAccess.requestIfUndetermined()
 
         let transcriber = WhisperKitTranscriber(model: chosenModel)
-        let warmupSemaphore = DispatchSemaphore(value: 0)
-        var warmupError: Error?
-        Task.detached {
-            do {
-                try await transcriber.warmUp()
-            } catch {
-                warmupError = error
-            }
-            warmupSemaphore.signal()
-        }
-        warmupSemaphore.wait()
-        if let warmupError {
-            throw StartupFailure.warmupFailed(warmupError)
-        }
 
         // ArgumentParser calls run() on the main thread.
         try MainActor.assumeIsolated {
@@ -65,7 +52,7 @@ public enum Daemon {
     /// Wires the hotkey, capture and UI to a `DictationController` and runs
     /// the AppKit loop. Returns only if the app terminates.
     @MainActor
-    private static func runLoop(model: TranscriptionModel, transcriber: Transcriber, options: DaemonOptions) throws {
+    private static func runLoop(model: TranscriptionModel, transcriber: WhisperKitTranscriber, options: DaemonOptions) throws {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
 
@@ -100,8 +87,34 @@ public enum Daemon {
         monitor.onHealthChange = { health in
             MainActor.assumeIsolated { menuBar.setHotkeyHealth(health) }
         }
-        try startHotkey(monitor, menuBar: menuBar) { event in
-            controller.handle(event)
+        // Load the model behind the menu-bar icon, so a first launch that
+        // downloads it shows "loading model…" instead of nothing. The hotkey
+        // starts only once the model is ready, so a press never reaches an
+        // unloaded transcriber. A failed load (offline first run) retries
+        // with backoff rather than exiting: the login item does not relaunch.
+        menuBar.setHotkeyHealth(.modelLoading)
+        Task { @MainActor in
+            var retryDelay: UInt64 = 30
+            while true {
+                do {
+                    try await transcriber.warmUp()
+                    break
+                } catch {
+                    Log.error("\(StartupFailure.warmupFailed(error).message); retrying in \(retryDelay)s")
+                    menuBar.setHotkeyHealth(.modelFailed)
+                    try? await Task.sleep(nanoseconds: retryDelay * 1_000_000_000)
+                    retryDelay = min(retryDelay * 2, 600)
+                    menuBar.setHotkeyHealth(.modelLoading)
+                }
+            }
+            do {
+                try startHotkey(monitor, menuBar: menuBar) { event in
+                    controller.handle(event)
+                }
+            } catch {
+                Log.error((error as? StartupFailure)?.message ?? "\(error)")
+                menuBar.setHotkeyHealth(.tapDisabled)
+            }
         }
 
         let sigint = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
