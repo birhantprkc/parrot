@@ -15,3 +15,7 @@
 
 # gh render issues projection (GitHub is canonical)
 .issues/
+
+# app bundle and DMG (scripts/build-app.sh, scripts/make-dmg.sh)
+build/
+dist/
