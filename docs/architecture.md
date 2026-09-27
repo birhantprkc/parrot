@@ -21,7 +21,6 @@ Parrot is a macOS menu-bar dictation app. Hold a key, speak, release, and the tr
 7. [Startup and failure](#7-startup-and-failure)
 8. [Rules](#8-rules)
 9. [Permissions](#9-permissions)
-10. [Issue map](#10-issue-map)
 
 ## 1. Goals and non-goals
 
@@ -50,7 +49,7 @@ Package.swift
   ParrotTests     tests       unit tests against ParrotCore
 ```
 
-`Parrot.app` wraps the `parrot` executable in a signed bundle (#40). The same binary runs as the app (launched by `SMAppService` or from Finder) and as the CLI (through a symlink). Launching with no subcommand runs the dictation loop.
+`Parrot.app` wraps the `parrot` executable in a signed bundle. The same binary runs as the app (launched by `SMAppService` or from Finder) and as the CLI (through a symlink). Launching with no subcommand runs the dictation loop.
 
 The executable holds no logic beyond parsing flags and calling ParrotCore. Anything worth testing lives in ParrotCore.
 
@@ -139,11 +138,11 @@ Features plug in at one of these points. They do not add branches to `DictationC
 
 | Point | Shape | Used by |
 |---|---|---|
-| `TranscriptionContext` | value passed to `transcribe`: language, prompt text | dictionary prompting (#33), language (#43) |
-| `TranscriptProcessor` | `func process(_ transcript: Transcript) -> Transcript`, synchronous, pure where possible | dictionary replacements (#33); future cleanup passes |
-| Delivery decision | chooses injector or fallback from the `FocusSnapshot` and the result | secure fields and focus drift (#38) |
-| `DictationObserver` | `dictationStarted`, `dictationTranscribing`, `dictationFinished(DictationResult)`, `dictationFailed`; each has an empty default | overlay, menu bar, stats (#46), latency (#49) |
-| `Settings` sections | a field in `Settings` plus a view in `UI/Sections/` | hotkey (#42), model (#1), language (#43), dictionary editor (#33), input device (#44), stats (#46) |
+| `TranscriptionContext` | value passed to `transcribe`: language, prompt text | dictionary prompting, language |
+| `TranscriptProcessor` | `func process(_ transcript: Transcript) -> Transcript`, synchronous, pure where possible | dictionary replacements; future cleanup passes |
+| Delivery decision | chooses injector or fallback from the `FocusSnapshot` and the result | secure fields and focus drift |
+| `DictationObserver` | `dictationStarted`, `dictationTranscribing`, `dictationFinished(DictationResult)`, `dictationFailed`; each has an empty default | overlay, menu bar, stats, latency |
+| `Settings` sections | a field in `Settings` plus a view in `UI/Sections/` | hotkey, model, language, dictionary editor, input device, stats |
 
 ## 5. Settings
 
@@ -165,7 +164,7 @@ Uninstall removes all three.
 
 ## 7. Startup and failure
 
-`Startup` runs its checks before loading a model: Accessibility, microphone authorization, and the selected model id. Each failure is a `StartupFailure` with `isPermanent`: missing Accessibility, denied microphone, an unknown model, and no registered models are permanent; failed checks, warmup, and an unavailable hotkey are not. A permanent failure prints one actionable message and exits 0, so launchd does not relaunch into it. A crash or transient failure exits nonzero. This rule lives in one place, `Run` in `main.swift` (#36).
+`Startup` runs its checks before loading a model: Accessibility, microphone authorization, and the selected model id. Each failure is a `StartupFailure` with `isPermanent`: missing Accessibility, denied microphone, an unknown model, and no registered models are permanent; failed checks, warmup, and an unavailable hotkey are not. A permanent failure prints one actionable message and exits 0, so launchd does not relaunch into it. A crash or transient failure exits nonzero. This rule lives in one place, `Run` in `main.swift`.
 
 ## 8. Rules
 
@@ -179,19 +178,6 @@ Uninstall removes all three.
 
 ## 9. Permissions
 
-Parrot needs Microphone and Accessibility. macOS keys both grants to the app's code identity. With a Developer ID signature and a stable bundle identifier, grants survive updates. With an ad-hoc signature, each new build is a new identity, and the grant silently stops applying. That is why the signed bundle (#40) matters, and why `scripts/dev-install.sh` signs local builds with the Developer ID certificate.
+Parrot needs Microphone and Accessibility. macOS keys both grants to the app's code identity. With a Developer ID signature and a stable bundle identifier, grants survive updates. With an ad-hoc signature, each new build is a new identity, and the grant silently stops applying. That is why the signed bundle matters, and why `scripts/dev-install.sh` signs local builds with the Developer ID certificate.
 
-`parrot setup` is the only command that shows the permission prompts. The running app checks without prompting (#36).
-
-## 10. Issue map
-
-| Area | Issues |
-|---|---|
-| `Support/`, `App/Startup.swift`, logging | #34, #35, #36 |
-| `Input/` | #37, #38, #42 |
-| `Audio/` | #39, #44 |
-| `Transcription/` | #1, #43, #49 |
-| `Dictionary/`, `Pipeline/` | #33 |
-| `Settings/`, `UI/SettingsWindow.swift` | #41 |
-| `Stats/` | #46 |
-| Bundle, signing, `SMAppService`, release | #40 |
+`parrot setup` is the only command that shows the permission prompts. The running app checks without prompting.
