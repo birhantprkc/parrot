@@ -14,6 +14,8 @@ import Foundation
 /// - A release always stops capture and notifies `dictationTranscribing`,
 ///   even with nothing recorded; an empty capture then fails with
 ///   `DictationError.noAudio`.
+/// - A transcript that does not reach the cursor (a secure field, or focus
+///   moved since the press) fails with its `DeliveryError`.
 @MainActor
 final class DictationController {
     enum State: Equatable {
@@ -29,21 +31,26 @@ final class DictationController {
     private let processors: [TranscriptProcessor]
     private let observers: [DictationObserver]
     private let dumpWav: Bool
+    private let delivery: TextDelivery
     /// Transcriptions started and not yet finished or failed.
     private var inFlight = 0
+    /// What had focus when the current recording started (#38).
+    private var focusAtStart: FocusSnapshot?
 
     init(
         capture: AudioCapture,
         transcriber: Transcriber,
         processors: [TranscriptProcessor] = [],
         observers: [DictationObserver],
-        dumpWav: Bool = false
+        dumpWav: Bool = false,
+        delivery: TextDelivery
     ) {
         self.capture = capture
         self.transcriber = transcriber
         self.processors = processors
         self.observers = observers
         self.dumpWav = dumpWav
+        self.delivery = delivery
     }
 
     func handle(_ event: HotkeyMonitor.Event) {
@@ -60,6 +67,7 @@ final class DictationController {
             Log.error("capture failed: \(error)")
             return
         }
+        focusAtStart = FocusSnapshot.capture()
         Log.info("● recording")
         state = .recording
         observers.forEach { $0.dictationStarted() }
@@ -67,6 +75,8 @@ final class DictationController {
 
     func release() {
         let samples = capture.stop()
+        let focus = focusAtStart
+        focusAtStart = nil
         state = .transcribing
         observers.forEach { $0.dictationTranscribing() }
 
@@ -94,9 +104,13 @@ final class DictationController {
                 // Never log the transcript itself: the agent's log is a file on disk.
                 Log.info(String(format: "→ %.2fs · %d chars", elapsed, raw.text.count))
                 let transcript = processors.reduce(raw) { $1.process($0) }
-                TextInjector.inject(transcript.text)
+                let delivered = Result { try delivery.deliver(transcript.text, focusAtStart: focus) }
                 inFlight -= 1
                 settle()
+                if case .failure(let error) = delivered {
+                    observers.forEach { $0.dictationFailed(error) }
+                    return
+                }
                 let result = DictationResult(
                     captureDuration: seconds,
                     transcriptionTime: elapsed,

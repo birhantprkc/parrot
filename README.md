@@ -17,7 +17,9 @@ Requires macOS 14+ on Apple Silicon. `parrot setup` grants mic and accessibility
 
 1. Click into any text field.
 2. Hold `fn` and speak. A small pill at the bottom of the screen shows the mic is live.
-3. Release. The transcript is typed at the cursor, usually within 200–300 ms.
+3. Release. The transcript is pasted at the cursor, usually within 200–300 ms, and your clipboard is put back as it was.
+
+If you switch apps or fields before the transcript is ready, it goes to the clipboard instead. If a password field has focus, the transcript is discarded.
 
 Run `parrot install --launch-at-login` to keep it running in the menu bar. It logs to `~/Library/Logs/parrot/`, readable only by you, and records timings and character counts, never what you said. If `fn` is mapped to input source or emoji, `parrot doctor` shows how to fix it.
 
@@ -35,10 +37,11 @@ Run `parrot install --launch-at-login` to keep it running in the menu bar. It lo
 | `parrot --model whisper-large-v3-turbo` | Larger, multilingual model |
 | `parrot --hotkey right-option` | Change the push-to-talk key |
 | `parrot --no-overlay` | Hide the recording pill |
+| `parrot --inject-mode type-unicode` | Type the text as key events instead of pasting; leaves the clipboard alone, but terminals and Electron apps ignore it |
 
 ## 4. How it works
 
-A single Swift executable: WhisperKit runs Whisper on the Apple Neural Engine via CoreML, AVAudioEngine captures the mic, a CGEventTap watches the hotkey, and CGEvent types the result at the cursor. See [docs/architecture.md](docs/architecture.md).
+A single Swift executable: WhisperKit runs Whisper on the Apple Neural Engine via CoreML, AVAudioEngine captures the mic, a CGEventTap watches the hotkey, and a synthesized ⌘V pastes the result at the cursor. See [docs/architecture.md](docs/architecture.md).
 
 ## 5. Build from source
 

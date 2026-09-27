@@ -8,13 +8,23 @@ public struct DaemonOptions {
     public var dumpWav: Bool
     public var noOverlay: Bool
     public var model: String?
+    /// How transcripts are inserted. Paste unless `--inject-mode` says otherwise.
+    public var injectMode: InjectMode
 
-    public init(skipDoctor: Bool, debugHotkey: Bool, dumpWav: Bool, noOverlay: Bool, model: String?) {
+    public init(
+        skipDoctor: Bool,
+        debugHotkey: Bool,
+        dumpWav: Bool,
+        noOverlay: Bool,
+        model: String?,
+        injectMode: InjectMode = .paste
+    ) {
         self.skipDoctor = skipDoctor
         self.debugHotkey = debugHotkey
         self.dumpWav = dumpWav
         self.noOverlay = noOverlay
         self.model = model
+        self.injectMode = injectMode
     }
 }
 
@@ -71,7 +81,8 @@ public enum Daemon {
             transcriber: transcriber,
             processors: [],
             observers: observers,
-            dumpWav: options.dumpWav
+            dumpWav: options.dumpWav,
+            delivery: TextDelivery(mode: options.injectMode)
         )
 
         // HotkeyMonitor reports health on the main thread.
@@ -96,7 +107,7 @@ public enum Daemon {
         sigint.resume()
         signal(SIGINT, SIG_IGN)
 
-        Log.info("listening on fn hold · model: \(model.id) · ^C to quit")
+        Log.info("listening on fn hold · model: \(model.id) · inject: \(options.injectMode.rawValue) · ^C to quit")
         app.run()
     }
 }

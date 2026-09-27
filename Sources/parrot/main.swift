@@ -34,6 +34,18 @@ struct Run: ParsableCommand {
     @Option(name: .long, help: "Model id to use. Defaults to the recommended model.")
     var model: String?
 
+    @Option(
+        name: .long,
+        help: "How text is inserted: paste (default; borrows the clipboard and restores it) or type-unicode.",
+        transform: { raw in
+            guard let mode = InjectMode(rawValue: raw) else {
+                throw ValidationError("expected one of: \(InjectMode.allCases.map(\.rawValue).joined(separator: ", "))")
+            }
+            return mode
+        }
+    )
+    var injectMode: InjectMode = .paste
+
     func run() throws {
         do {
             try Daemon.run(DaemonOptions(
@@ -41,7 +53,8 @@ struct Run: ParsableCommand {
                 debugHotkey: debugHotkey,
                 dumpWav: dumpWav,
                 noOverlay: noOverlay,
-                model: model
+                model: model,
+                injectMode: injectMode
             ))
         } catch let failure as StartupFailure {
             // The one exit-code rule. launchd's KeepAlive{SuccessfulExit: false}
