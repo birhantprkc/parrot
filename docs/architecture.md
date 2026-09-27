@@ -88,7 +88,9 @@ Sources/ParrotCore/
     TranscriptProcessor.swift   protocol for post-transcription steps
   Dictionary/
     Dictionary.swift            the user's terms, replacements, and example sentences
+    DictionaryStore.swift       loads dictionary.json, reloads on change, accepts dotfiles symlinks
     DictionaryProcessor.swift   the replacement pass
+    DictionaryContext.swift     the example sentence for the active language, as the prompt
   Stats/
     StatsRecorder.swift         counts only, as a DictationObserver
   UI/

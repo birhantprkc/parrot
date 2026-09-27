@@ -28,7 +28,7 @@ enum Paths {
     /// `settings.json` in `config`. Declared for the settings store; not read or written yet.
     static var settingsFile: URL { config.appendingPathComponent("settings.json") }
 
-    /// `dictionary.json` in `config`. Declared for the dictionary; not read or written yet.
+    /// `dictionary.json` in `config`: the user's terms, replacements and example sentences.
     static var dictionaryFile: URL { config.appendingPathComponent("dictionary.json") }
 
     /// The daemon's stdout under launchd.
