@@ -35,6 +35,11 @@ public enum Daemon {
     public static func run(_ options: DaemonOptions) throws {
         let chosenModel = try Startup.check(modelID: options.model, skipDoctor: options.skipDoctor)
 
+        // Startup has already exited on denied access. If the system has never
+        // asked, ask now, without waiting, so the prompt is answered during
+        // warmup rather than on the first press.
+        MicrophoneAccess.requestIfUndetermined()
+
         let transcriber = WhisperKitTranscriber(model: chosenModel)
         let warmupSemaphore = DispatchSemaphore(value: 0)
         var warmupError: Error?

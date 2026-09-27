@@ -10,7 +10,8 @@ import Foundation
 /// - A press always tries to start capture, even while an earlier capture is
 ///   still transcribing. That transcription still delivers, and its
 ///   `dictationFinished` reaches observers while the new recording runs.
-/// - A press whose capture fails to start only logs; observers hear nothing.
+/// - A press whose capture fails to start logs and notifies `dictationFailed`
+///   with the capture error; the state does not change.
 /// - A release always stops capture and notifies `dictationTranscribing`,
 ///   even with nothing recorded; an empty capture then fails with
 ///   `DictationError.noAudio`.
@@ -65,6 +66,7 @@ final class DictationController {
             try capture.start()
         } catch {
             Log.error("capture failed: \(error)")
+            observers.forEach { $0.dictationFailed(error) }
             return
         }
         focusAtStart = FocusSnapshot.capture()
