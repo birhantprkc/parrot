@@ -1,42 +1,86 @@
 #!/usr/bin/env bash
-# Build, sign, and install a local parrot for testing.
+# Build, sign, and install a local Parrot.app for testing.
 #   scripts/dev-install.sh
 #
-# macOS keys the Accessibility and Microphone grants to the binary's code
+# macOS keys the Accessibility and Microphone grants to the app's code
 # identity. An ad-hoc signature changes on every build, so each rebuild
-# silently loses the grants. Signing with a Developer ID certificate and a
-# fixed identifier keeps one identity across rebuilds.
+# silently loses the grants. Signing with the Developer ID certificate and
+# the fixed bundle ID com.humanitas.parrot (packaging/Info.plist) keeps one
+# identity across rebuilds and releases.
 #
-# Override with PARROT_SIGN_IDENTITY, PARROT_IDENTIFIER, or PARROT_INSTALL_DIR.
+# Installs to /Applications, or ~/Applications when /Applications is not
+# writable, and links /usr/local/bin/parrot to the app's executable. A plain
+# binary already at that path (an old CLI install) is only replaced after you
+# say yes. A running copy is quit and reopened.
+#
+#   PARROT_SIGN_IDENTITY  signing identity (default: the keychain's Developer ID)
+#   PARROT_INSTALL_DIR    where Parrot.app goes
+#   PARROT_LINK_DIR       where the parrot link goes (default /usr/local/bin;
+#                         set it empty to skip the link)
+#   PARROT_NO_RESTART=1   don't quit and reopen a running copy
 
 set -euo pipefail
-
-IDENTITY="${PARROT_SIGN_IDENTITY:-Developer ID Application: Andrew Jones (T4H3QX65LN)}"
-IDENTIFIER="${PARROT_IDENTIFIER:-com.humanitas.parrot}"
-INSTALL_DIR="${PARROT_INSTALL_DIR:-/usr/local/bin}"
-# The LaunchAgent label keeps its old name until #40 replaces the agent with SMAppService.
-LABEL="com.digimata.parrot"
-
 cd "$(dirname "$0")/.."
 
-echo "→ building"
-swift build -c release
+if [ -z "${PARROT_INSTALL_DIR:-}" ]; then
+    if [ -w /Applications ]; then
+        PARROT_INSTALL_DIR=/Applications
+    else
+        PARROT_INSTALL_DIR="$HOME/Applications"
+    fi
+fi
+LINK_DIR="${PARROT_LINK_DIR-/usr/local/bin}"
+BUILD="${PARROT_BUILD_DIR:-build}"
+DEST="$PARROT_INSTALL_DIR/Parrot.app"
+EXE="$DEST/Contents/MacOS/parrot"
 
-BIN=".build/release/parrot"
+VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo 0.0.0)"
+PARROT_TIMESTAMP=none PARROT_BUILD_DIR="$BUILD" scripts/build-app.sh "${VERSION#v}"
 
-echo "→ signing as $IDENTIFIER"
-codesign --force --timestamp=none --identifier "$IDENTIFIER" --sign "$IDENTITY" "$BIN"
-codesign --verify --strict "$BIN"
-
-echo "→ installing to $INSTALL_DIR"
-SUDO=""
-[ -w "$INSTALL_DIR" ] || SUDO="sudo"
-$SUDO install -m 0755 "$BIN" "$INSTALL_DIR/parrot"
-
-# Restart the LaunchAgent if one is loaded, so it runs the new build.
-if launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1; then
-    echo "→ restarting $LABEL"
-    launchctl kickstart -k "gui/$(id -u)/$LABEL"
+WAS_RUNNING=0
+if [ -z "${PARROT_NO_RESTART:-}" ] && pgrep -f "^$EXE" >/dev/null 2>&1; then
+    WAS_RUNNING=1
+    echo "→ quitting the running Parrot"
+    pkill -TERM -f "^$EXE" || true
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+        pgrep -f "^$EXE" >/dev/null 2>&1 || break
+        sleep 0.5
+    done
 fi
 
-echo "✓ installed $("$INSTALL_DIR/parrot" --version 2>/dev/null || echo parrot)"
+echo "→ installing to $DEST"
+mkdir -p "$PARROT_INSTALL_DIR"
+rm -rf "$DEST"
+ditto "$BUILD/Parrot.app" "$DEST"
+
+if [ -n "$LINK_DIR" ]; then
+    LINK="$LINK_DIR/parrot"
+    REPLACE=1
+    if [ -e "$LINK" ] && [ ! -L "$LINK" ]; then
+        REPLACE=0
+        if [ -t 0 ]; then
+            printf '%s is a separate parrot binary (an old CLI install). Replace it with a link to %s? [y/N] ' "$LINK" "$EXE"
+            read -r answer
+            case "$answer" in y|Y|yes) REPLACE=1 ;; esac
+        fi
+        [ "$REPLACE" = 1 ] || echo "  left $LINK as it was"
+    fi
+    if [ "$REPLACE" = 1 ]; then
+        echo "→ linking $LINK"
+        mkdir -p "$LINK_DIR" 2>/dev/null || sudo mkdir -p "$LINK_DIR"
+        SUDO=""
+        [ -w "$LINK_DIR" ] || SUDO="sudo"
+        $SUDO ln -sfn "$EXE" "$LINK"
+    fi
+fi
+
+if [ "$WAS_RUNNING" = 1 ]; then
+    echo "→ reopening Parrot"
+    open "$DEST"
+fi
+
+if [ -f "$HOME/Library/LaunchAgents/com.digimata.parrot.plist" ]; then
+    echo "note: the old LaunchAgent is still installed. Open $DEST once; it removes the agent."
+fi
+
+echo "✓ installed Parrot $("$EXE" --version 2>/dev/null || echo "$VERSION") at $DEST"
