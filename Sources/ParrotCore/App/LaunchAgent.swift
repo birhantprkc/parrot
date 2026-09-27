@@ -1,4 +1,3 @@
-import ArgumentParser
 import Foundation
 
 /// Manage parrot's LaunchAgent so the daemon starts at login.
@@ -6,48 +5,33 @@ import Foundation
 /// We deliberately do NOT use SMAppService.mainApp here — that requires a full
 /// .app bundle. Since parrot ships as a single binary in /usr/local/bin, a
 /// plain LaunchAgent plist is the simpler, more honest mechanism.
-struct Install: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        abstract: "Install or remove the launch-at-login LaunchAgent."
-    )
+public enum LaunchAgent {
+    /// Register parrot to start at login (`parrot install --launch-at-login`).
+    public static func install() throws {
+        try writeAgent()
+    }
 
-    @Flag(name: .long, help: "Register parrot to start at login.")
-    var launchAtLogin: Bool = false
-
-    @Flag(name: .long, help: "Remove the launch-at-login agent.")
-    var uninstall: Bool = false
-
-    func run() throws {
-        if launchAtLogin == uninstall {
-            FileHandle.standardError.write(Data(
-                "specify exactly one of --launch-at-login or --uninstall\n".utf8
-            ))
-            throw ExitCode(64)
-        }
-
-        if uninstall {
-            try removeAgent()
-            removeLegacyTmpFiles()
-        } else {
-            try writeAgent()
-        }
+    /// Remove the agent and its logs (`parrot install --uninstall`).
+    public static func uninstall() throws {
+        try removeAgent()
+        removeLegacyTmpFiles()
     }
 
     // MARK: -
 
     static let label = "com.digimata.parrot"
 
-    private var plistURL: URL {
+    private static var plistURL: URL {
         let home = FileManager.default.homeDirectoryForCurrentUser
         return home
             .appendingPathComponent("Library/LaunchAgents", isDirectory: true)
             .appendingPathComponent("\(Self.label).plist")
     }
 
-    private var outLog: URL { Paths.logs.appendingPathComponent("parrot.out.log") }
-    private var errLog: URL { Paths.logs.appendingPathComponent("parrot.err.log") }
+    private static var outLog: URL { Paths.logs.appendingPathComponent("parrot.out.log") }
+    private static var errLog: URL { Paths.logs.appendingPathComponent("parrot.err.log") }
 
-    private func writeAgent() throws {
+    private static func writeAgent() throws {
         let binary = try resolveBinaryPath()
 
         // launchd opens these as the user; the 0700 directory keeps them
@@ -101,7 +85,7 @@ struct Install: ParsableCommand {
         print("  logs:   \(Paths.logs.path)/")
     }
 
-    private func removeAgent() throws {
+    private static func removeAgent() throws {
         let url = plistURL
         if FileManager.default.fileExists(atPath: url.path) {
             _ = runLaunchctl(["bootout", "gui/\(uid())", url.path])
@@ -118,7 +102,7 @@ struct Install: ParsableCommand {
 
     /// Delete the pre-0.0.6 /tmp logs and capture. They hold the user's
     /// transcripts; only touch files this user owns.
-    private func removeLegacyTmpFiles() {
+    private static func removeLegacyTmpFiles() {
         for path in Paths.legacyTmpFiles {
             guard
                 let attrs = try? FileManager.default.attributesOfItem(atPath: path),
@@ -133,7 +117,7 @@ struct Install: ParsableCommand {
         }
     }
 
-    private func resolveBinaryPath() throws -> String {
+    private static func resolveBinaryPath() throws -> String {
         // /usr/local/bin/parrot is the canonical install path. Honor a real
         // location if running from elsewhere (e.g. dev).
         let candidate = "/usr/local/bin/parrot"
@@ -151,12 +135,12 @@ struct Install: ParsableCommand {
         FileHandle.standardError.write(Data(
             "couldn't locate the parrot binary. install it to /usr/local/bin/parrot first.\n".utf8
         ))
-        throw ExitCode(1)
+        throw SilentExit(1)
     }
 
-    private func uid() -> uid_t { getuid() }
+    private static func uid() -> uid_t { getuid() }
 
-    private func runLaunchctl(_ args: [String]) -> (status: Int32, stderr: String) {
+    private static func runLaunchctl(_ args: [String]) -> (status: Int32, stderr: String) {
         let task = Process()
         task.launchPath = "/bin/launchctl"
         task.arguments = args

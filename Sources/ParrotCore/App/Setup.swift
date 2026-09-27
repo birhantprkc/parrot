@@ -1,14 +1,11 @@
 import ApplicationServices
-import ArgumentParser
 import AVFoundation
 import Foundation
 
-struct Setup: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        abstract: "Walk through first-run permission setup."
-    )
-
-    func run() throws {
+/// First-run permission setup (`parrot setup`). The only place Parrot shows
+/// the system permission prompts.
+public enum SetupFlow {
+    public static func run() throws {
         print("parrot setup")
         print("============")
         print()
@@ -29,7 +26,7 @@ struct Setup: ParsableCommand {
         print("✓ all set. Run `parrot` to start the daemon.")
     }
 
-    private func waitForAccessibility() throws {
+    private static func waitForAccessibility() throws {
         if AXIsProcessTrusted() {
             print("✓ accessibility already granted")
             return
@@ -42,10 +39,10 @@ struct Setup: ParsableCommand {
         print()
         print("  1. Toggle your terminal on in the Accessibility list.")
         print("  2. Re-run `parrot setup` — macOS only picks up the grant on a fresh process.")
-        throw ExitCode(0)
+        throw SilentExit(0)
     }
 
-    private func waitForMicrophone() throws {
+    private static func waitForMicrophone() throws {
         let status = AVCaptureDevice.authorizationStatus(for: .audio)
         switch status {
         case .authorized:
@@ -56,7 +53,7 @@ struct Setup: ParsableCommand {
             print("  opening Settings → Privacy & Security → Microphone...")
             openSettings("Privacy_Microphone")
             print("  enable your terminal, then re-run `parrot setup`.")
-            throw ExitCode(1)
+            throw SilentExit(1)
         case .notDetermined:
             print("→ requesting microphone access...")
             let semaphore = DispatchSemaphore(value: 0)
@@ -70,14 +67,14 @@ struct Setup: ParsableCommand {
                 print("  ✓ microphone granted")
             } else {
                 print("  ✗ microphone denied")
-                throw ExitCode(1)
+                throw SilentExit(1)
             }
         @unknown default:
             print("? microphone in unknown state")
         }
     }
 
-    private func openSettings(_ pane: String) {
+    private static func openSettings(_ pane: String) {
         let url = "x-apple.systempreferences:com.apple.preference.security?\(pane)"
         let task = Process()
         task.launchPath = "/usr/bin/open"

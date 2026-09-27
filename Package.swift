@@ -9,11 +9,19 @@ let package = Package(
         .package(url: "https://github.com/argmaxinc/WhisperKit.git", from: "0.9.0"),
     ],
     targets: [
+        // All behaviour: capture, hotkey, transcription, pipeline, settings, UI.
+        .target(
+            name: "ParrotCore",
+            dependencies: [
+                .product(name: "WhisperKit", package: "WhisperKit"),
+            ]
+        ),
+        // Thin entry point: ArgumentParser commands that call into ParrotCore.
         .executableTarget(
             name: "parrot",
             dependencies: [
+                "ParrotCore",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
-                .product(name: "WhisperKit", package: "WhisperKit"),
             ]
         ),
     ]

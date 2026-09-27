@@ -1,42 +1,34 @@
 import AppKit
 import ApplicationServices
-import ArgumentParser
 import AVFoundation
 import Foundation
-import WhisperKit
 
-@main
-struct Parrot: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "parrot",
-        abstract: "Minimal macOS dictation daemon. Hold Fn, speak, release.",
-        subcommands: [Run.self, Setup.self, Doctor.self, Models.self, Install.self],
-        defaultSubcommand: Run.self
-    )
+/// Flags for one foreground run of the dictation loop. Never persisted.
+public struct DaemonOptions {
+    public var skipDoctor: Bool
+    public var debugHotkey: Bool
+    public var dumpWav: Bool
+    public var noOverlay: Bool
+    public var model: String?
+
+    public init(skipDoctor: Bool, debugHotkey: Bool, dumpWav: Bool, noOverlay: Bool, model: String?) {
+        self.skipDoctor = skipDoctor
+        self.debugHotkey = debugHotkey
+        self.dumpWav = dumpWav
+        self.noOverlay = noOverlay
+        self.model = model
+    }
 }
 
-struct Run: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "run",
-        abstract: "Run the daemon (default)."
-    )
+/// The dictation daemon (`parrot`, `parrot run`): startup checks, model
+/// warmup, then the AppKit run loop. Does not return once running.
+public enum Daemon {
+    public static func run(_ options: DaemonOptions) throws {
+        let skipDoctor = options.skipDoctor
+        let debugHotkey = options.debugHotkey
+        let noOverlay = options.noOverlay
+        let model = options.model
 
-    @Flag(name: .long, help: "Skip permission checks at startup.")
-    var skipDoctor: Bool = false
-
-    @Flag(name: .long, help: "Print every keyboard event the tap sees (debug).")
-    var debugHotkey: Bool = false
-
-    @Flag(name: .long, help: "Write each capture to ~/Library/Caches/parrot/last-capture.wav for inspection.")
-    var dumpWav: Bool = false
-
-    @Flag(name: .long, help: "Disable the on-screen recording overlay.")
-    var noOverlay: Bool = false
-
-    @Option(name: .long, help: "Model id to use. Defaults to the recommended model.")
-    var model: String?
-
-    func run() throws {
         // Agents installed before 0.0.6 log to /tmp until the plist is rewritten.
         if Paths.legacyTmpFiles.contains(where: { FileManager.default.fileExists(atPath: $0) }) {
             FileHandle.standardError.write(Data(
@@ -50,7 +42,7 @@ struct Run: ParsableCommand {
                 FileHandle.standardError.write(Data("startup checks failed:\n".utf8))
                 DoctorReport.print(checks)
                 FileHandle.standardError.write(Data("\nfix the above or pass --skip-doctor\n".utf8))
-                throw ExitCode(1)
+                throw SilentExit(1)
             }
         }
 
@@ -108,7 +100,7 @@ struct Run: ParsableCommand {
         warmupSemaphore.wait()
         if let warmupError {
             FileHandle.standardError.write(Data("warmup failed: \(warmupError)\n".utf8))
-            throw ExitCode(1)
+            throw SilentExit(1)
         }
 
         let app = NSApplication.shared
@@ -116,7 +108,7 @@ struct Run: ParsableCommand {
 
         let monitor = HotkeyMonitor(debug: debugHotkey)
         let capture = AudioCapture()
-        let dumpWav = self.dumpWav
+        let dumpWav = options.dumpWav
         let overlay: RecordingOverlay? = noOverlay ? nil : MainActor.assumeIsolated { RecordingOverlay() }
         if let overlay {
             capture.onLevel = { level in overlay.pushLevel(level) }
@@ -192,7 +184,7 @@ struct Run: ParsableCommand {
         } catch {
             FileHandle.standardError.write(Data("failed to register hotkey tap: \(error)\n".utf8))
             FileHandle.standardError.write(Data("run `parrot setup` to configure permissions.\n".utf8))
-            throw ExitCode(1)
+            throw SilentExit(1)
         }
 
         let sigint = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
@@ -212,68 +204,12 @@ struct Run: ParsableCommand {
     /// KeepAlive{SuccessfulExit: false} relaunches on nonzero exit, and a
     /// relaunch can't fix these, so print the fix once and exit 0. Crashes
     /// and warmup errors still exit nonzero and get restarted.
-    private func permanentFailure(_ problem: String, fix: String) -> ExitCode {
+    private static func permanentFailure(_ problem: String, fix: String) -> SilentExit {
         FileHandle.standardError.write(Data((
             "\(problem)\n"
             + "  fix: \(fix), then restart parrot "
-            + "(`launchctl kickstart gui/\(getuid())/\(Install.label)`, or log in again).\n"
+            + "(`launchctl kickstart gui/\(getuid())/\(LaunchAgent.label)`, or log in again).\n"
         ).utf8))
-        return ExitCode(0)
-    }
-}
-
-struct Doctor: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        abstract: "Check microphone, accessibility, and Fn key configuration."
-    )
-
-    func run() throws {
-        let checks = DoctorReport.run()
-        DoctorReport.print(checks)
-        if !DoctorReport.allOK(checks) {
-            throw ExitCode(1)
-        }
-    }
-}
-
-struct Models: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        abstract: "Manage transcription models.",
-        subcommands: [List.self, Download.self]
-    )
-
-    struct List: ParsableCommand {
-        func run() throws {
-            for m in ModelRegistry.shared {
-                let star = m.recommended ? "★" : " "
-                let id = m.id.padding(toLength: 26, withPad: " ", startingAt: 0)
-                let langs = "[\(m.languages.joined(separator: ","))]"
-                    .padding(toLength: 9, withPad: " ", startingAt: 0)
-                let size = String(format: "%5d MB", m.sizeMB)
-                print("\(star) \(id) \(size)  \(langs)  \(m.displayName)")
-            }
-        }
-    }
-
-    struct Download: ParsableCommand {
-        @Argument(help: "Model id to download.") var id: String
-
-        func run() throws {
-            guard let m = ModelRegistry.find(id) else {
-                print("unknown model: \(id)")
-                throw ExitCode(1)
-            }
-            WhisperKitTranscriber.migrateLegacyModels()
-            let t = WhisperKitTranscriber(model: m)
-
-            let sem = DispatchSemaphore(value: 0)
-            var capturedError: Error?
-            Task.detached {
-                do { try await t.warmUp() } catch { capturedError = error }
-                sem.signal()
-            }
-            sem.wait()
-            if let e = capturedError { throw e }
-        }
+        return SilentExit(0)
     }
 }
