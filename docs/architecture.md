@@ -63,7 +63,10 @@ Sources/ParrotCore/
     DictationObserver.swift     observer protocol and DictationResult (counts and timings, never text)
     Startup.swift               startup checks and StartupFailure (permanent vs transient)
     Daemon.swift                the `run` command: startup, wiring, run loop
-    Setup.swift, Doctor.swift, LaunchAgent.swift, ModelCommands.swift
+    AppLaunch.swift             the app role: bundle detection, single instance, migration off the old LaunchAgent
+    LoginItem.swift, CommandLineLink.swift
+                                launch at login (SMAppService) and the `parrot` symlink into the bundle
+    Setup.swift, Doctor.swift, ModelCommands.swift
                                 bodies of the other commands
   Support/
     Paths.swift                 every on-disk location Parrot uses
@@ -168,7 +171,9 @@ Uninstall removes logs and caches. It leaves config and models, so a reinstall k
 
 ## 7. Startup and failure
 
-`Startup` runs its checks before loading a model: microphone authorization and the selected model id. Each failure is a `StartupFailure` with `isPermanent`: denied microphone, an unknown model, and no registered models are permanent; failed checks, warmup, and an unavailable hotkey are not. A permanent failure prints one actionable message and exits 0, so launchd does not relaunch into it. A crash or transient failure exits nonzero. This rule lives in one place, `Run` in `main.swift`.
+`Startup` runs its checks before loading a model: microphone authorization and the selected model id. Each failure is a `StartupFailure` with `isPermanent`: denied microphone, an unknown model, and no registered models are permanent; failed checks and an unavailable hotkey are not. A permanent failure prints one actionable message (a dialog when running as the app) and exits 0. Anything else exits nonzero. This rule lives in one place, `Run` in `main.swift`.
+
+Everything after the checks happens behind the menu-bar icon, so the app is never invisible: the model loads (downloading on first run) with "loading model…" in the menu, a failed load retries with backoff instead of exiting, and the hotkey starts once the model is ready and Accessibility is granted. Launch at login is an `SMAppService` login item, which does not relaunch a crashed app, so the app avoids exiting over anything it can wait out.
 
 ## 8. Rules
 
@@ -184,7 +189,7 @@ Uninstall removes logs and caches. It leaves config and models, so a reinstall k
 
 Parrot needs Microphone and Accessibility. macOS keys both grants to the app's code identity. With a Developer ID signature and a stable bundle identifier, grants survive updates. With an ad-hoc signature, each new build is a new identity, and the grant silently stops applying. That is why the signed bundle matters, and why `scripts/dev-install.sh` signs local builds with the Developer ID certificate.
 
-A grant belongs to the process that asked: `parrot setup` grants the terminal, which covers foreground runs, but the launch-at-login daemon needs its own. So the daemon asks for itself. Without Accessibility it shows the prompt once, keeps running with "grant Accessibility to start" in the menu bar, and starts the hotkey as soon as the grant appears; it never exits over it, because an exit would make launchd relaunch it and re-fire the prompt. When microphone access is not yet decided, it requests that once at startup.
+A grant belongs to the process that asked: `parrot setup` grants the terminal, which covers foreground runs, but the launch-at-login daemon needs its own. So the daemon asks for itself. Without Accessibility it shows the prompt once, keeps running with "grant Accessibility to start" in the menu bar, and starts the hotkey as soon as the grant appears; it never exits over it, because an exit would either leave the user with nothing running or, under a relaunching supervisor, re-fire the prompt. When microphone access is not yet decided, it requests that once at startup.
 
 ## 10. Decision log
 
