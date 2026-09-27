@@ -60,10 +60,15 @@ The executable holds no logic beyond parsing flags and calling ParrotCore. Anyth
 Sources/ParrotCore/
   App/
     DictationController.swift   the dictation loop: gesture → capture → transcribe → process → deliver
+    DictationObserver.swift     observer protocol and DictationResult (counts and timings, never text)
     Startup.swift               startup checks and StartupFailure (permanent vs transient)
+    Daemon.swift                the `run` command: startup, wiring, run loop
+    Setup.swift, Doctor.swift, LaunchAgent.swift, ModelCommands.swift
+                                bodies of the other commands
   Support/
     Paths.swift                 every on-disk location Parrot uses
     Log.swift                   stderr logging; never logs transcript text
+    SilentExit.swift            "message printed, exit with this code", so ParrotCore needs no ArgumentParser
   Settings/
     Settings.swift              Codable settings value with defaults
     SettingsStore.swift         load, atomic save, file watching, change publishing
@@ -137,7 +142,7 @@ Features plug in at one of these points. They do not add branches to `DictationC
 | `TranscriptionContext` | value passed to `transcribe`: language, prompt text | dictionary prompting (#33), language (#43) |
 | `TranscriptProcessor` | `func process(_ transcript: Transcript) -> Transcript`, synchronous, pure where possible | dictionary replacements (#33); future cleanup passes |
 | Delivery decision | chooses injector or fallback from the `FocusSnapshot` and the result | secure fields and focus drift (#38) |
-| `DictationObserver` | callbacks for started, finished (with counts and timings), failed | overlay, menu bar, stats (#46) |
+| `DictationObserver` | `dictationStarted`, `dictationTranscribing`, `dictationFinished(DictationResult)`, `dictationFailed`; each has an empty default | overlay, menu bar, stats (#46), latency (#49) |
 | `Settings` sections | a field in `Settings` plus a view in `UI/Sections/` | hotkey (#42), model (#1), language (#43), dictionary editor (#33), input device (#44), stats (#46) |
 
 ## 5. Settings
@@ -160,7 +165,7 @@ Uninstall removes all three.
 
 ## 7. Startup and failure
 
-`Startup` runs its checks before loading a model: Accessibility, microphone authorization, and the selected model id. Each failure is a `StartupFailure` with `isPermanent`. A permanent failure prints one actionable message and exits 0, so launchd does not relaunch into it. A crash or transient failure exits nonzero. This rule lives in one place, the entry point's handling of `StartupFailure` (#36).
+`Startup` runs its checks before loading a model: Accessibility, microphone authorization, and the selected model id. Each failure is a `StartupFailure` with `isPermanent`: missing Accessibility, denied microphone, an unknown model, and no registered models are permanent; failed checks, warmup, and an unavailable hotkey are not. A permanent failure prints one actionable message and exits 0, so launchd does not relaunch into it. A crash or transient failure exits nonzero. This rule lives in one place, `Run` in `main.swift` (#36).
 
 ## 8. Rules
 
