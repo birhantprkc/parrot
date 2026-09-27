@@ -3,18 +3,34 @@ import SwiftUI
 
 /// Borderless, click-through pill near the bottom of the active screen.
 /// Driven by the dictation loop as a `DictationObserver`.
+///
+/// Besides the recording and transcribing states, the pill can show a
+/// one-line message (`showMessage`). A `UserFacingError` reaching
+/// `dictationFailed` is shown that way; any other error just hides the pill.
 @MainActor
 final class RecordingOverlay {
     enum State: Equatable {
         case hidden
         case recording
         case transcribing
+        /// One line of text, for example why a recording failed.
+        case message(String)
     }
+
+    /// How long a message stays up unless another state replaces it.
+    nonisolated static let messageDuration: TimeInterval = 4
+
+    /// Wide enough for a one-line message; the panel is transparent and
+    /// click-through, so the unused width is invisible.
+    private static let panelSize = NSSize(width: 640, height: 44)
 
     private var window: NSPanel?
     private let model = OverlayModel()
+    /// Bumped by every `show`, so a message timer only hides its own message.
+    private var generation = 0
 
     func show(_ state: State) {
+        generation += 1
         ensureWindow()
         if state == .recording {
             model.resetLevels()
@@ -37,11 +53,33 @@ final class RecordingOverlay {
     func hide() {
         model.state = .hidden
         // Let the SwiftUI scale+fade animation play out before yanking the
-        // window — otherwise it just pops away.
+        // window — otherwise it just pops away. Skip it if something was
+        // shown again in the meantime.
         let window = self.window
+        let model = self.model
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            guard model.state == .hidden else { return }
             window?.orderOut(nil)
         }
+    }
+
+    /// Shows `text` on one line in the pill for `duration` seconds, then
+    /// hides it, unless another state has replaced it by then. Never pass
+    /// transcript text.
+    func showMessage(_ text: String, for duration: TimeInterval = RecordingOverlay.messageDuration) {
+        show(.message(text))
+        let shown = generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.generation == shown else { return }
+                self.hide()
+            }
+        }
+    }
+
+    /// The message to show for a failed dictation, or nil to just hide.
+    nonisolated static func message(for error: Error) -> String? {
+        (error as? UserFacingError)?.userMessage
     }
 
     /// Push a new audio level (0…~1). Safe to call from any thread.
@@ -54,7 +92,7 @@ final class RecordingOverlay {
     private func ensureWindow() {
         if window != nil { return }
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 96, height: 44),
+            contentRect: NSRect(origin: .zero, size: Self.panelSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -69,6 +107,9 @@ final class RecordingOverlay {
         panel.hidesOnDeactivate = false
 
         let host = NSHostingView(rootView: OverlayPill(model: model))
+        // Keep the panel its fixed size and let SwiftUI center the pill in it,
+        // so a wider message grows both ways instead of off to the right.
+        host.sizingOptions = []
         host.frame = panel.contentView?.bounds ?? .zero
         host.autoresizingMask = [.width, .height]
         panel.contentView = host
@@ -100,7 +141,11 @@ extension RecordingOverlay: DictationObserver {
     }
 
     func dictationFailed(_ error: Error) {
-        hide()
+        if let text = Self.message(for: error) {
+            showMessage(text)
+        } else {
+            hide()
+        }
     }
 }
 
@@ -160,6 +205,13 @@ private struct OverlayPill: View {
                 .controlSize(.small)
                 .scaleEffect(0.8)
                 .frame(width: 54, height: 22)
+        case .message(let text):
+            Text(text)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(Color(red: 235/255, green: 238/255, blue: 242/255))
+                .lineLimit(1)
+                .fixedSize()
+                .frame(height: 22)
         }
     }
 }
