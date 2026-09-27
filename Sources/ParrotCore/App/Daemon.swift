@@ -80,6 +80,7 @@ public enum Daemon {
         // The dictionary (#33): created on first run, reloaded when it changes.
         let dictionary = DictionaryStore()
         dictionary.createIfMissing()
+        let dictionaryContext = DictionaryContext(store: dictionary, language: DictionaryContext.knownLanguage(of: model))
 
         // Overlay first, then menu bar: the order the UI updated in before.
         var observers: [DictationObserver] = []
@@ -91,7 +92,8 @@ public enum Daemon {
             processors: [DictionaryProcessor(store: dictionary)],
             observers: observers,
             dumpWav: options.dumpWav,
-            delivery: TextDelivery(mode: options.injectMode)
+            delivery: TextDelivery(mode: options.injectMode),
+            context: dictionaryContext.context
         )
 
         // HotkeyMonitor reports health on the main thread.

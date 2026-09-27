@@ -33,6 +33,10 @@ final class DictationController {
     private let observers: [DictationObserver]
     private let dumpWav: Bool
     private let delivery: TextDelivery
+    /// What to tell the transcriber about each dictation, asked once per
+    /// release. Features such as the dictionary fill it; the controller only
+    /// passes it on.
+    private let context: @MainActor () -> TranscriptionContext
     /// Transcriptions started and not yet finished or failed.
     private var inFlight = 0
     /// What had focus when the current recording started (#38).
@@ -44,7 +48,8 @@ final class DictationController {
         processors: [TranscriptProcessor] = [],
         observers: [DictationObserver],
         dumpWav: Bool = false,
-        delivery: TextDelivery
+        delivery: TextDelivery,
+        context: @escaping @MainActor () -> TranscriptionContext = { TranscriptionContext() }
     ) {
         self.capture = capture
         self.transcriber = transcriber
@@ -52,6 +57,7 @@ final class DictationController {
         self.observers = observers
         self.dumpWav = dumpWav
         self.delivery = delivery
+        self.context = context
     }
 
     func handle(_ event: HotkeyMonitor.Event) {
@@ -106,7 +112,7 @@ final class DictationController {
 
         inFlight += 1
         let transcriber = self.transcriber
-        let context = TranscriptionContext()
+        let context = self.context()
         Task {
             let started = Date()
             do {

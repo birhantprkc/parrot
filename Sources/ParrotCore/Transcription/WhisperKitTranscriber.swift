@@ -35,15 +35,33 @@ actor WhisperKitTranscriber: Transcriber {
         Log.info("✓ \(model.id) ready")
     }
 
-    /// `context` is not used yet: language and prompt support arrive with
-    /// their features.
+    /// Uses `context.language` and `context.prompt`. `context.vocabulary` is
+    /// ignored: Whisper takes no word list, and a list given as a prompt
+    /// scores no better than nothing (#23).
     func transcribe(_ audio: [Float], context: TranscriptionContext) async throws -> Transcript {
         if pipeline == nil { try await warmUp() }
         guard let pipeline else { throw TranscriberError.notLoaded }
 
-        let results = try await pipeline.transcribe(audioArray: audio)
+        var options = DecodingOptions()
+        options.language = context.language
+        options.promptTokens = Self.promptTokens(for: context.prompt, tokenizer: pipeline.tokenizer)
+        let results = try await pipeline.transcribe(audioArray: audio, decodeOptions: options)
         let raw = results.map(\.text).joined(separator: " ")
         return Transcript(text: Self.sanitize(raw))
+    }
+
+    /// `prompt` as Whisper prompt tokens, or nil for none. Whisper reads them as
+    /// the text spoken just before the audio. Special tokens are dropped: the
+    /// decoder builds its own control sequence around the prompt, and a stray
+    /// one there desynchronizes it.
+    static func promptTokens(for prompt: String?, tokenizer: WhisperTokenizer?) -> [Int]? {
+        guard let tokenizer,
+              let text = prompt?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty
+        else { return nil }
+        // A leading space, as the text would appear mid-transcript.
+        let tokens = tokenizer.encode(text: " " + text)
+            .filter { $0 < tokenizer.specialTokens.specialTokenBegin }
+        return tokens.isEmpty ? nil : tokens
     }
 
     /// Strip Whisper's non-speech bracket tokens ([BLANK_AUDIO], [MUSIC],
