@@ -99,7 +99,7 @@ public enum Daemon {
                     Task {
                         let started = Date()
                         do {
-                            let text = try await transcriber.transcribe(samples)
+                            let text = try await transcriber.transcribe(samples, context: TranscriptionContext()).text
                             let elapsed = Date().timeIntervalSince(started)
                             // Never log the transcript itself: the agent's log is a file on disk.
                             Log.info(String(format: "→ %.2fs · %d chars", elapsed, text.count))

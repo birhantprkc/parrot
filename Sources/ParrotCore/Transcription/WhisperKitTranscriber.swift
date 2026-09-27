@@ -35,13 +35,15 @@ actor WhisperKitTranscriber: Transcriber {
         Log.info("✓ \(model.id) ready")
     }
 
-    func transcribe(_ audio: [Float]) async throws -> String {
+    /// `context` is not used yet: language and prompt support arrive with
+    /// their features.
+    func transcribe(_ audio: [Float], context: TranscriptionContext) async throws -> Transcript {
         if pipeline == nil { try await warmUp() }
         guard let pipeline else { throw TranscriberError.notLoaded }
 
         let results = try await pipeline.transcribe(audioArray: audio)
         let raw = results.map(\.text).joined(separator: " ")
-        return Self.sanitize(raw)
+        return Transcript(text: Self.sanitize(raw))
     }
 
     /// Strip Whisper's non-speech bracket tokens ([BLANK_AUDIO], [MUSIC],
