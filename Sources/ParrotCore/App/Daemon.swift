@@ -23,9 +23,6 @@ public struct DaemonOptions {
 public enum Daemon {
     /// Throws `StartupFailure` if the daemon cannot start.
     public static func run(_ options: DaemonOptions) throws {
-        let debugHotkey = options.debugHotkey
-        let noOverlay = options.noOverlay
-
         let chosenModel = try Startup.check(modelID: options.model, skipDoctor: options.skipDoctor)
 
         let transcriber = WhisperKitTranscriber(model: chosenModel)
@@ -44,79 +41,43 @@ public enum Daemon {
             throw StartupFailure.warmupFailed(warmupError)
         }
 
+        // ArgumentParser calls run() on the main thread.
+        try MainActor.assumeIsolated {
+            try runLoop(model: chosenModel, transcriber: transcriber, options: options)
+        }
+    }
+
+    /// Wires the hotkey, capture and UI to a `DictationController` and runs
+    /// the AppKit loop. Returns only if the app terminates.
+    @MainActor
+    private static func runLoop(model: TranscriptionModel, transcriber: Transcriber, options: DaemonOptions) throws {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
 
-        let monitor = HotkeyMonitor(debug: debugHotkey)
+        let monitor = HotkeyMonitor(debug: options.debugHotkey)
         let capture = AudioCapture()
-        let dumpWav = options.dumpWav
-        let overlay: RecordingOverlay? = noOverlay ? nil : MainActor.assumeIsolated { RecordingOverlay() }
+        let overlay: RecordingOverlay? = options.noOverlay ? nil : RecordingOverlay()
         if let overlay {
             capture.onLevel = { level in overlay.pushLevel(level) }
         }
-        let menuBar = MainActor.assumeIsolated { MenuBarController(modelID: chosenModel.id) }
+        let menuBar = MenuBarController(modelID: model.id)
+
+        // Overlay first, then menu bar: the order the UI updated in before.
+        var observers: [DictationObserver] = []
+        if let overlay { observers.append(overlay) }
+        observers.append(menuBar)
+        let controller = DictationController(
+            capture: capture,
+            transcriber: transcriber,
+            processors: [],
+            observers: observers,
+            dumpWav: options.dumpWav
+        )
 
         do {
+            // HotkeyMonitor delivers events on the main queue.
             try monitor.start { event in
-                switch event {
-                case .pressed:
-                    do {
-                        try capture.start()
-                        Log.info("● recording")
-                        MainActor.assumeIsolated {
-                            overlay?.show(.recording)
-                            menuBar.setRecording(true)
-                        }
-                    } catch {
-                        Log.error("capture failed: \(error)")
-                    }
-                case .released:
-                    let samples = capture.stop()
-                    MainActor.assumeIsolated {
-                        overlay?.show(.transcribing)
-                        menuBar.setTranscribing()
-                    }
-                    let seconds = Double(samples.count) / AudioCapture.targetSampleRate
-                    let rms = computeRMS(samples)
-                    Log.info(String(format: "○ captured %.2fs · rms %.3f", seconds, rms))
-                    if dumpWav, !samples.isEmpty {
-                        do {
-                            try Paths.prepareDirectory(Paths.caches)
-                            let path = try Paths.preparePrivateFile(Paths.dumpWav).path
-                            try WAVWriter.write(samples: samples, sampleRate: 16_000, to: path)
-                            Log.info("  wrote \(path)")
-                        } catch {
-                            Log.error("  wav write failed: \(error)")
-                        }
-                    }
-                    guard !samples.isEmpty else {
-                        MainActor.assumeIsolated {
-                            overlay?.hide()
-                            menuBar.setRecording(false)
-                        }
-                        return
-                    }
-                    Task {
-                        let started = Date()
-                        do {
-                            let text = try await transcriber.transcribe(samples, context: TranscriptionContext()).text
-                            let elapsed = Date().timeIntervalSince(started)
-                            // Never log the transcript itself: the agent's log is a file on disk.
-                            Log.info(String(format: "→ %.2fs · %d chars", elapsed, text.count))
-                            await MainActor.run {
-                                TextInjector.inject(text)
-                                overlay?.hide()
-                                menuBar.setRecording(false)
-                            }
-                        } catch {
-                            Log.error("transcription failed: \(error)")
-                            await MainActor.run {
-                                overlay?.hide()
-                                menuBar.setRecording(false)
-                            }
-                        }
-                    }
-                }
+                MainActor.assumeIsolated { controller.handle(event) }
             }
         } catch {
             throw StartupFailure.hotkeyUnavailable(error)
@@ -131,7 +92,7 @@ public enum Daemon {
         sigint.resume()
         signal(SIGINT, SIG_IGN)
 
-        Log.info("listening on fn hold · model: \(chosenModel.id) · ^C to quit")
+        Log.info("listening on fn hold · model: \(model.id) · ^C to quit")
         app.run()
     }
 }

@@ -1,6 +1,8 @@
 import Foundation
 
-protocol Transcriber {
+/// A speech-to-text engine. Called from the main actor; implementations do
+/// their work elsewhere (WhisperKitTranscriber is an actor).
+protocol Transcriber: Sendable {
     var modelID: String { get }
     func transcribe(_ audio: [Float], context: TranscriptionContext) async throws -> Transcript
 }

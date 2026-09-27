@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Borderless, click-through pill near the bottom of the active screen.
-/// Driven by the daemon's hotkey + transcription lifecycle.
+/// Driven by the dictation loop as a `DictationObserver`.
 @MainActor
 final class RecordingOverlay {
     enum State: Equatable {
@@ -83,6 +83,24 @@ final class RecordingOverlay {
         let x = visible.midX - frame.width / 2
         let y = visible.minY + 32
         window.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+}
+
+extension RecordingOverlay: DictationObserver {
+    func dictationStarted() {
+        show(.recording)
+    }
+
+    func dictationTranscribing() {
+        show(.transcribing)
+    }
+
+    func dictationFinished(_ result: DictationResult) {
+        hide()
+    }
+
+    func dictationFailed(_ error: Error) {
+        hide()
     }
 }
 

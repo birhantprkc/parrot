@@ -3,51 +3,65 @@ import AppKit
 /// Status bar item in the top-right of the menu bar. Shows recording state at
 /// a glance and provides the only persistent control surface for the daemon
 /// (since we run as `.accessory` — no dock icon, no main window).
+///
+/// The menu has named slots, top to bottom: `statusLine`, `modelLine`,
+/// `settingsItem`, `quitItem`. Features update a slot rather than rebuilding
+/// the menu.
 @MainActor
 final class MenuBarController {
+    private static let idleStatus = "idle · hold fn to dictate"
+
     private let statusItem: NSStatusItem
-    private let modelLabel: NSMenuItem
-    private let stateLabel: NSMenuItem
-    private let modelID: String
+    /// Slot: what the dictation loop is doing. Driven as a `DictationObserver`.
+    let statusLine: NSMenuItem
+    /// Slot: the loaded model.
+    let modelLine: NSMenuItem
+    /// Slot: opens the settings window. Disabled until that window exists (#41).
+    let settingsItem: NSMenuItem
+    /// Slot: quits parrot.
+    let quitItem: NSMenuItem
 
     init(modelID: String) {
-        self.modelID = modelID
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
 
         let menu = NSMenu()
         menu.autoenablesItems = false
 
-        stateLabel = NSMenuItem(title: "idle · hold fn to dictate", action: nil, keyEquivalent: "")
-        stateLabel.isEnabled = false
-        menu.addItem(stateLabel)
+        statusLine = NSMenuItem(title: Self.idleStatus, action: nil, keyEquivalent: "")
+        statusLine.isEnabled = false
+        menu.addItem(statusLine)
 
-        modelLabel = NSMenuItem(title: "model: \(modelID)", action: nil, keyEquivalent: "")
-        modelLabel.isEnabled = false
-        menu.addItem(modelLabel)
+        modelLine = NSMenuItem(title: "model: \(modelID)", action: nil, keyEquivalent: "")
+        modelLine.isEnabled = false
+        menu.addItem(modelLine)
 
         menu.addItem(.separator())
 
-        let quit = NSMenuItem(
+        settingsItem = NSMenuItem(title: "Settings…", action: nil, keyEquivalent: ",")
+        settingsItem.isEnabled = false
+        menu.addItem(settingsItem)
+
+        quitItem = NSMenuItem(
             title: "Quit parrot",
             action: #selector(quitClicked),
             keyEquivalent: "q"
         )
-        quit.target = self
-        menu.addItem(quit)
+        menu.addItem(quitItem)
 
         statusItem.menu = menu
-        configureButton(recording: false)
+        quitItem.target = self
+        configureButton()
     }
 
-    func setRecording(_ recording: Bool) {
-        stateLabel.title = recording ? "● recording" : "idle · hold fn to dictate"
+    func setStatus(_ text: String) {
+        statusLine.title = text
     }
 
-    func setTranscribing() {
-        stateLabel.title = "transcribing…"
+    func setModel(_ modelID: String) {
+        modelLine.title = "model: \(modelID)"
     }
 
-    private func configureButton(recording: Bool) {
+    private func configureButton() {
         guard let button = statusItem.button else { return }
         let image = Self.birdImage()
         image?.isTemplate = true
@@ -80,5 +94,23 @@ final class MenuBarController {
 
     @objc private func quitClicked() {
         NSApp.terminate(nil)
+    }
+}
+
+extension MenuBarController: DictationObserver {
+    func dictationStarted() {
+        setStatus("● recording")
+    }
+
+    func dictationTranscribing() {
+        setStatus("transcribing…")
+    }
+
+    func dictationFinished(_ result: DictationResult) {
+        setStatus(Self.idleStatus)
+    }
+
+    func dictationFailed(_ error: Error) {
+        setStatus(Self.idleStatus)
     }
 }
