@@ -40,3 +40,10 @@ extension DictationObserver {
     func dictationFinished(_ result: DictationResult) {}
     func dictationFailed(_ error: Error) {}
 }
+
+/// An error with a short message the user should see, for example in the
+/// overlay. Anything else reaching `dictationFailed` is only logged.
+protocol UserFacingError: Error {
+    /// One line, actionable, never containing transcript text.
+    var userMessage: String { get }
+}
