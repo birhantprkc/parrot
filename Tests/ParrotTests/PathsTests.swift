@@ -3,8 +3,8 @@ import XCTest
 
 final class PathsTests: XCTestCase {
     func testFilesLiveUnderTheirDirectories() {
-        XCTAssertEqual(Paths.settingsFile.deletingLastPathComponent().path, Paths.appSupport.path)
-        XCTAssertEqual(Paths.dictionaryFile.deletingLastPathComponent().path, Paths.appSupport.path)
+        XCTAssertEqual(Paths.settingsFile.deletingLastPathComponent().path, Paths.config.path)
+        XCTAssertEqual(Paths.dictionaryFile.deletingLastPathComponent().path, Paths.config.path)
         XCTAssertEqual(Paths.daemonOutLog.deletingLastPathComponent().path, Paths.logs.path)
         XCTAssertEqual(Paths.daemonErrLog.deletingLastPathComponent().path, Paths.logs.path)
         XCTAssertEqual(Paths.dumpWav.deletingLastPathComponent().path, Paths.caches.path)
@@ -12,7 +12,7 @@ final class PathsTests: XCTestCase {
 
     func testNothingLivesInTmpOrDocuments() {
         let all = [
-            Paths.appSupport, Paths.logs, Paths.caches, Paths.settingsFile, Paths.dictionaryFile,
+            Paths.config, Paths.appSupport, Paths.logs, Paths.caches, Paths.settingsFile, Paths.dictionaryFile,
             Paths.daemonOutLog, Paths.daemonErrLog, Paths.dumpWav,
         ]
         for url in all {

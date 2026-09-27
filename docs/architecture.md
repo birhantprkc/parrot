@@ -147,7 +147,7 @@ Features plug in at one of these points. They do not add branches to `DictationC
 
 ## 5. Settings
 
-One file: `~/Library/Application Support/parrot/settings.json`, a `Codable` `Settings` value. A missing key takes its default. Writes are atomic. `SettingsStore` watches the directory, so hand edits apply live, and a file that fails to parse keeps the last good settings and logs one line.
+One file: `~/.config/parrot/settings.json` (or `$XDG_CONFIG_HOME/parrot/`), a `Codable` `Settings` value. A missing key takes its default. Writes are atomic. `SettingsStore` watches the directory, so hand edits apply live, and a file that fails to parse keeps the last good settings and logs one line.
 
 Subsystems observe the settings they care about and reconfigure themselves. Launch at login carries no settings. CLI flags override a single foreground run and are never persisted.
 
@@ -157,11 +157,12 @@ Every location comes from `Paths`. No other code builds a path.
 
 | Location | Contents |
 |---|---|
-| `~/Library/Application Support/parrot/` | `settings.json`, `dictionary.json`, `stats.json`, `models/` |
+| `~/.config/parrot/` | `settings.json`, `dictionary.json`: what the user edits and may keep in dotfiles. `$XDG_CONFIG_HOME/parrot/` when that is set |
+| `~/Library/Application Support/parrot/` | `models/`, `stats.json`: downloaded data and machine state |
 | `~/Library/Logs/parrot/` | daemon logs, owner-only; timings and lengths, never transcript text |
 | `~/Library/Caches/parrot/` | `--dump-wav` debug captures, owner-only |
 
-Uninstall removes all three.
+Uninstall removes logs and caches. It leaves config and models, so a reinstall keeps the dictionary and does not download the models again.
 
 ## 7. Startup and failure
 
@@ -190,7 +191,7 @@ Architecture decisions are recorded in [`decisions/`](decisions/). Each says wha
 | ADR | Decision |
 |---|---|
 | [001](decisions/001-core-library-and-extension-points.md) | Core library and extension points |
-| [002](decisions/002-settings-file.md) | One settings file in Application Support |
+| [002](decisions/002-settings-file.md) | Config in `~/.config/parrot`, data in Application Support |
 | [003](decisions/003-push-to-talk-on-a-modifier.md) | Push-to-talk on a single modifier key |
 | [004](decisions/004-local-data-and-privacy.md) | Local data and privacy |
 | [005](decisions/005-signed-app-identity.md) | Signed app identity |

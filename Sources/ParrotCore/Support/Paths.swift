@@ -1,8 +1,19 @@
 import Foundation
 
-/// Where parrot keeps files on disk. Everything lives under ~/Library, never
-/// /tmp or ~/Documents. Directories are owner-only (0700).
+/// Where parrot keeps files on disk. User-authored config lives in
+/// ~/.config/parrot; everything else lives under ~/Library. Never /tmp or
+/// ~/Documents. Directories are owner-only (0700).
 enum Paths {
+    /// `$XDG_CONFIG_HOME/parrot`, default `~/.config/parrot` — the files a user
+    /// edits and may keep in dotfiles: settings and the dictionary.
+    static var config: URL {
+        if let xdg = ProcessInfo.processInfo.environment["XDG_CONFIG_HOME"], xdg.hasPrefix("/") {
+            return URL(fileURLWithPath: xdg, isDirectory: true).appendingPathComponent("parrot", isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".config/parrot", isDirectory: true)
+    }
+
     /// `~/Library/Application Support/parrot` — model weights and tokenizers.
     /// Not Caches: the system purges that under disk pressure, which would
     /// mean a surprise multi-GB download.
@@ -14,11 +25,11 @@ enum Paths {
     /// `~/Library/Caches/parrot` — debug output such as `--dump-wav`.
     static var caches: URL { library("Caches/parrot") }
 
-    /// `settings.json` in `appSupport`. Declared for the settings store; not read or written yet.
-    static var settingsFile: URL { appSupport.appendingPathComponent("settings.json") }
+    /// `settings.json` in `config`. Declared for the settings store; not read or written yet.
+    static var settingsFile: URL { config.appendingPathComponent("settings.json") }
 
-    /// `dictionary.json` in `appSupport`. Declared for the dictionary; not read or written yet.
-    static var dictionaryFile: URL { appSupport.appendingPathComponent("dictionary.json") }
+    /// `dictionary.json` in `config`. Declared for the dictionary; not read or written yet.
+    static var dictionaryFile: URL { config.appendingPathComponent("dictionary.json") }
 
     /// The daemon's stdout under launchd.
     static var daemonOutLog: URL { logs.appendingPathComponent("parrot.out.log") }
