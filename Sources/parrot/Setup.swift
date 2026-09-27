@@ -19,6 +19,9 @@ struct Setup: ParsableCommand {
         print("These attach to your terminal app (Terminal/iTerm/Ghostty/etc.), not parrot itself.")
         print()
 
+        // Runs here, with the terminal's ~/Documents access; the daemon has none.
+        WhisperKitTranscriber.migrateLegacyModels()
+
         try waitForAccessibility()
         print()
         try waitForMicrophone()

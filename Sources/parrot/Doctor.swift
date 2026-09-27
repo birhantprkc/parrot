@@ -21,7 +21,31 @@ enum DoctorReport {
             checkMicrophone(),
             checkAccessibility(),
             checkFnKeyMapping(),
+            checkModelCache(),
         ]
+    }
+
+    /// Models belong in Application Support. ~/Documents is unreadable from
+    /// the launchd daemon and iCloud can evict the weights, which hangs load.
+    static func checkModelCache() -> Check {
+        let name = "model cache (\(Paths.appSupport.path))"
+        let resolved = Paths.appSupport.resolvingSymlinksInPath().path
+        let documents = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents").path
+        if resolved.hasPrefix(documents + "/") || resolved.contains("/Library/Mobile Documents/") {
+            return Check(
+                name: name,
+                status: .warn("resolves to \(resolved), under ~/Documents or iCloud"),
+                remediation: "make \(Paths.appSupport.path) a real folder, then `parrot models download <id>`"
+            )
+        }
+        if WhisperKitTranscriber.hasLegacyModels() {
+            return Check(
+                name: name,
+                status: .warn("models still in \(Paths.legacyModels.path)"),
+                remediation: "run `parrot setup` to move them"
+            )
+        }
+        return Check(name: name, status: .ok, remediation: nil)
     }
 
     static func checkMicrophone() -> Check {

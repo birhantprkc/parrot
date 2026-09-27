@@ -68,6 +68,14 @@ struct Run: ParsableCommand {
             chosenModel = m
         }
 
+        // Don't look in ~/Documents for an old cache: under launchd that read
+        // is denied or prompts. Name the command that can migrate instead.
+        if !WhisperKitTranscriber.isCached(chosenModel) {
+            FileHandle.standardError.write(Data(
+                "\(chosenModel.id) not in \(Paths.appSupport.path), downloading. to reuse a copy from ~/Documents/huggingface, run `parrot setup` instead.\n".utf8
+            ))
+        }
+
         let transcriber = WhisperKitTranscriber(model: chosenModel)
         let warmupSemaphore = DispatchSemaphore(value: 0)
         var warmupError: Error?
@@ -224,6 +232,7 @@ struct Models: ParsableCommand {
                 print("unknown model: \(id)")
                 throw ExitCode(1)
             }
+            WhisperKitTranscriber.migrateLegacyModels()
             let t = WhisperKitTranscriber(model: m)
 
             let sem = DispatchSemaphore(value: 0)

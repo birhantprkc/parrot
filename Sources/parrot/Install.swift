@@ -57,6 +57,10 @@ struct Install: ParsableCommand {
         try Paths.preparePrivateFile(outLog)
         try Paths.preparePrivateFile(errLog)
 
+        // Move old models now, while we have the terminal's ~/Documents
+        // access. The daemon can't read ~/Documents.
+        WhisperKitTranscriber.migrateLegacyModels()
+
         let plist: [String: Any] = [
             "Label": Self.label,
             "ProgramArguments": [binary, "run", "--skip-doctor"],

@@ -3,6 +3,11 @@ import Foundation
 /// Where parrot keeps files on disk. Everything lives under ~/Library, never
 /// /tmp or ~/Documents. Directories are owner-only (0700).
 enum Paths {
+    /// `~/Library/Application Support/parrot` — model weights and tokenizers.
+    /// Not Caches: the system purges that under disk pressure, which would
+    /// mean a surprise multi-GB download.
+    static var appSupport: URL { library("Application Support/parrot") }
+
     /// `~/Library/Logs/parrot` — the LaunchAgent's stdout/stderr.
     static var logs: URL { library("Logs/parrot") }
 
@@ -11,6 +16,13 @@ enum Paths {
 
     /// Pre-0.0.6 files that held transcripts and audio in world-readable /tmp.
     static let legacyTmpFiles = ["/tmp/parrot.out.log", "/tmp/parrot.err.log", "/tmp/parrot-last.wav"]
+
+    /// Pre-0.0.6 model cache: swift-transformers' default download base,
+    /// shared with other apps. The launchd daemon can't read ~/Documents, so
+    /// only foreground commands may touch it.
+    static var legacyModels: URL {
+        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Documents/huggingface", isDirectory: true)
+    }
 
     /// Creates `dir` if needed and restricts it to the owner. Refuses a path
     /// that exists but isn't a real directory (e.g. a symlink).
