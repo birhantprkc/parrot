@@ -35,7 +35,7 @@ struct Run: ParsableCommand {
     var model: String?
 
     func run() throws {
-        try exiting {
+        do {
             try Daemon.run(DaemonOptions(
                 skipDoctor: skipDoctor,
                 debugHotkey: debugHotkey,
@@ -43,6 +43,13 @@ struct Run: ParsableCommand {
                 noOverlay: noOverlay,
                 model: model
             ))
+        } catch let failure as StartupFailure {
+            // The one exit-code rule. launchd's KeepAlive{SuccessfulExit: false}
+            // relaunches on nonzero exit, and a relaunch can't fix a permanent
+            // failure, so print its fix once and exit 0. Everything else exits
+            // nonzero and gets restarted.
+            Log.error(failure.message)
+            throw ExitCode(failure.isPermanent ? 0 : 1)
         }
     }
 }

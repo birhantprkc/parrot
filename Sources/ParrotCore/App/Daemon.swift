@@ -1,6 +1,4 @@
 import AppKit
-import ApplicationServices
-import AVFoundation
 import Foundation
 
 /// Flags for one foreground run of the dictation loop. Never persisted.
@@ -23,64 +21,12 @@ public struct DaemonOptions {
 /// The dictation daemon (`parrot`, `parrot run`): startup checks, model
 /// warmup, then the AppKit run loop. Does not return once running.
 public enum Daemon {
+    /// Throws `StartupFailure` if the daemon cannot start.
     public static func run(_ options: DaemonOptions) throws {
-        let skipDoctor = options.skipDoctor
         let debugHotkey = options.debugHotkey
         let noOverlay = options.noOverlay
-        let model = options.model
 
-        // Agents installed before 0.0.6 log to /tmp until the plist is rewritten.
-        if Paths.legacyTmpFiles.contains(where: { FileManager.default.fileExists(atPath: $0) }) {
-            Log.info("note: old parrot logs found in /tmp; run `parrot install --launch-at-login` again to remove them and log privately.")
-        }
-
-        if !skipDoctor {
-            let checks = DoctorReport.run()
-            if !DoctorReport.allOK(checks) {
-                Log.error("startup checks failed:")
-                DoctorReport.print(checks)
-                Log.error("\nfix the above or pass --skip-doctor")
-                throw SilentExit(1)
-            }
-        }
-
-        // Checks that retrying can't fix run before the model loads, so a
-        // failing start costs nothing and exits 0 (see permanentFailure).
-        let chosenModel: TranscriptionModel
-        if let id = model {
-            guard let m = ModelRegistry.find(id) else {
-                throw permanentFailure("unknown model: \(id)", fix: "pick one from `parrot models list` and update --model")
-            }
-            chosenModel = m
-        } else {
-            guard let m = ModelRegistry.recommended() else {
-                throw permanentFailure("no models registered", fix: "reinstall parrot")
-            }
-            chosenModel = m
-        }
-
-        // No prompt here: prompting on every relaunch re-fires the system
-        // dialog. `parrot setup` is the only place that prompts.
-        if !AXIsProcessTrusted() {
-            throw permanentFailure("accessibility not granted", fix: "run `parrot setup`")
-        }
-
-        // .notDetermined is left to the first recording, which requests access.
-        switch AVCaptureDevice.authorizationStatus(for: .audio) {
-        case .denied, .restricted:
-            throw permanentFailure(
-                "microphone access denied",
-                fix: "run `parrot setup`, or enable parrot in System Settings → Privacy & Security → Microphone"
-            )
-        default:
-            break
-        }
-
-        // Don't look in ~/Documents for an old cache: under launchd that read
-        // is denied or prompts. Name the command that can migrate instead.
-        if !WhisperKitTranscriber.isCached(chosenModel) {
-            Log.info("\(chosenModel.id) not in \(Paths.appSupport.path), downloading. to reuse a copy from ~/Documents/huggingface, run `parrot setup` instead.")
-        }
+        let chosenModel = try Startup.check(modelID: options.model, skipDoctor: options.skipDoctor)
 
         let transcriber = WhisperKitTranscriber(model: chosenModel)
         let warmupSemaphore = DispatchSemaphore(value: 0)
@@ -95,8 +41,7 @@ public enum Daemon {
         }
         warmupSemaphore.wait()
         if let warmupError {
-            Log.error("warmup failed: \(warmupError)")
-            throw SilentExit(1)
+            throw StartupFailure.warmupFailed(warmupError)
         }
 
         let app = NSApplication.shared
@@ -174,9 +119,7 @@ public enum Daemon {
                 }
             }
         } catch {
-            Log.error("failed to register hotkey tap: \(error)")
-            Log.error("run `parrot setup` to configure permissions.")
-            throw SilentExit(1)
+            throw StartupFailure.hotkeyUnavailable(error)
         }
 
         let sigint = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
@@ -190,18 +133,5 @@ public enum Daemon {
 
         Log.info("listening on fn hold · model: \(chosenModel.id) · ^C to quit")
         app.run()
-    }
-
-    /// A startup failure the user has to fix. The LaunchAgent's
-    /// KeepAlive{SuccessfulExit: false} relaunches on nonzero exit, and a
-    /// relaunch can't fix these, so print the fix once and exit 0. Crashes
-    /// and warmup errors still exit nonzero and get restarted.
-    private static func permanentFailure(_ problem: String, fix: String) -> SilentExit {
-        Log.error(
-            "\(problem)\n"
-            + "  fix: \(fix), then restart parrot "
-            + "(`launchctl kickstart gui/\(getuid())/\(LaunchAgent.label)`, or log in again)."
-        )
-        return SilentExit(0)
     }
 }
