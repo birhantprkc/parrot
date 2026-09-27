@@ -12,3 +12,6 @@
 
 # journal auto-rendered views (regenerate with `journal`)
 .journal/
+
+# gh render issues projection (GitHub is canonical)
+.issues/
