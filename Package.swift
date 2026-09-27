@@ -24,5 +24,10 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
+        // Unit tests against ParrotCore.
+        .testTarget(
+            name: "ParrotTests",
+            dependencies: ["ParrotCore"]
+        ),
     ]
 )

@@ -45,6 +45,7 @@ A single Swift executable: WhisperKit runs Whisper on the Apple Neural Engine vi
 ```sh
 swift build -c release
 .build/release/parrot --help
+swift test
 ```
 
 ## 6. License
