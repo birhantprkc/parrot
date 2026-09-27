@@ -84,7 +84,8 @@ enum Startup {
             throw StartupFailure.accessibilityMissing
         }
 
-        // .notDetermined is left to the first recording, which requests access.
+        // .notDetermined is requested asynchronously once the daemon starts
+        // (MicrophoneAccess), and again on the first press if still undecided.
         switch AVCaptureDevice.authorizationStatus(for: .audio) {
         case .denied, .restricted:
             throw StartupFailure.microphoneDenied

@@ -29,8 +29,9 @@ protocol DictationObserver: AnyObject {
     func dictationTranscribing()
     /// The transcript was delivered.
     func dictationFinished(_ result: DictationResult)
-    /// Nothing reached the cursor: no audio (`DictationError.noAudio`), the
-    /// transcriber threw, or delivery was refused (`DeliveryError`).
+    /// Nothing reached the cursor: capture failed (`CaptureError`), no audio
+    /// (`DictationError.noAudio`), the transcriber threw, or delivery was
+    /// refused (`DeliveryError`).
     func dictationFailed(_ error: Error)
 }
 

@@ -76,7 +76,17 @@ final class DictationController {
     }
 
     func release() {
-        let samples = capture.stop()
+        let samples: [Float]
+        do {
+            samples = try capture.finish()
+        } catch {
+            // The route changed mid-recording: no partial capture is delivered.
+            Log.error("capture failed: \(error)")
+            focusAtStart = nil
+            state = inFlight > 0 ? .transcribing : .idle
+            observers.forEach { $0.dictationFailed(error) }
+            return
+        }
         let focus = focusAtStart
         focusAtStart = nil
         state = .transcribing

@@ -21,7 +21,7 @@ Parrot is a macOS menu-bar dictation app. Hold a key, speak, release, and the tr
 7. [Startup and failure](#7-startup-and-failure)
 8. [Rules](#8-rules)
 9. [Permissions](#9-permissions)
-10. [Decisions](#10-decisions)
+10. [Decision log](#10-decision-log)
 
 ## 1. Goals and non-goals
 
@@ -182,9 +182,9 @@ Uninstall removes logs and caches. It leaves config and models, so a reinstall k
 
 Parrot needs Microphone and Accessibility. macOS keys both grants to the app's code identity. With a Developer ID signature and a stable bundle identifier, grants survive updates. With an ad-hoc signature, each new build is a new identity, and the grant silently stops applying. That is why the signed bundle matters, and why `scripts/dev-install.sh` signs local builds with the Developer ID certificate.
 
-`parrot setup` is the only command that shows the permission prompts. The running app checks without prompting.
+`parrot setup` shows the Accessibility prompt; the running app only checks Accessibility, because re-prompting on every relaunch re-fires the system dialog. The microphone is different: when access is not yet decided, the running app requests it once at startup, so the first launch at login can be granted without a terminal.
 
-## 10. Decisions
+## 10. Decision log
 
 Architecture decisions are recorded in [`decisions/`](decisions/). Each says what was decided, what was rejected and why, and when to revisit it.
 
