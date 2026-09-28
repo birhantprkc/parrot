@@ -20,6 +20,7 @@ macOS keys TCC grants to the code identity. Parrot was distributed ad-hoc signed
 ## 3. Design Implications
 
 - Changing the bundle ID or signing team resets every user's permission grants; treat it as a breaking change.
+- Updates are Sparkle archives signed with the Parrot EdDSA key (`SPARKLE_PRIVATE_KEY`), and Sparkle also requires the update's code signature to match the installed app. Rotating the EdDSA key or the Developer ID team breaks auto-update for existing installs.
 - Release builds need the Developer ID certificate and notarization credentials in CI; local builds use the `parrot-notary` keychain profile.
 - The running app asks for its own grants on first start and waits for them; it never exits over a missing Accessibility grant.
 

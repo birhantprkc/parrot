@@ -63,6 +63,7 @@ Sources/ParrotCore/
     DictationObserver.swift     observer protocol and DictationResult (counts and timings, never text)
     Startup.swift               startup checks and StartupFailure (permanent vs transient)
     Daemon.swift                the `run` command: startup, wiring, run loop
+    Updater.swift               Sparkle auto-update, started only in the app role
     AppLaunch.swift             the app role: bundle detection, single instance, migration off the old LaunchAgent
     LoginItem.swift, CommandLineLink.swift
                                 launch at login (SMAppService) and the `parrot` symlink into the bundle
@@ -179,7 +180,7 @@ Everything after the checks happens behind the menu-bar icon, so the app is neve
 
 1. Never write transcript text to logs, disk, or stats. The dictionary is the only user-authored text Parrot stores.
 2. Every on-disk location comes from `Paths`.
-3. Every persistent preference lives in `Settings` and changes through `SettingsStore`. No `UserDefaults`, no plist flags.
+3. Every persistent preference lives in `Settings` and changes through `SettingsStore`. No `UserDefaults`, no plist flags. The one exception is state Sparkle owns (last check time, the user's auto-install choice), which Sparkle keeps in the `com.humanitas.parrot` defaults domain.
 4. New behaviour after transcription is a `TranscriptProcessor` or a `DictationObserver`, not an edit to `DictationController`.
 5. Pure logic (gesture recognition, replacement pass, settings decoding, stats aggregation) has unit tests in `ParrotTests`.
 6. The event tap listens to `flagsChanged` only.
