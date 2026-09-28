@@ -159,7 +159,30 @@ final class OverlayModel: ObservableObject {
     @Published var state: RecordingOverlay.State = .hidden
     @Published var levels: [Float] = Array(repeating: 0, count: barCount)
 
+    /// How often the bars move. Capture delivers a level per buffer, about
+    /// every 12 ms with the AUHAL input (#52); the bars are tuned for about
+    /// 100 ms and look twitchy any faster.
+    static let refreshInterval: TimeInterval = 0.1
+
+    private var pendingPower: Float = 0
+    private var pendingCount = 0
+    private var lastRefresh: TimeInterval = 0
+
+    /// Collects levels and moves the bars once per `refreshInterval`, with
+    /// the RMS over that interval.
     func pushLevel(_ level: Float) {
+        pendingPower += level * level
+        pendingCount += 1
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastRefresh >= Self.refreshInterval else { return }
+        let rms = (pendingPower / Float(pendingCount)).squareRoot()
+        pendingPower = 0
+        pendingCount = 0
+        lastRefresh = now
+        showLevel(rms)
+    }
+
+    private func showLevel(_ level: Float) {
         let shaped = min(1.0, sqrt(max(0, level)) * 3.4)
         var next = [Float]()
         next.reserveCapacity(Self.barCount)
@@ -172,6 +195,8 @@ final class OverlayModel: ObservableObject {
     }
 
     func resetLevels() {
+        pendingPower = 0
+        pendingCount = 0
         levels = Array(repeating: 0, count: Self.barCount)
     }
 }
