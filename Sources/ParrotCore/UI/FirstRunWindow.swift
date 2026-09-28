@@ -83,10 +83,26 @@ final class FirstRunModel: ObservableObject {
 
     func continueClicked() {
         continued = true
-        for step in Permissions.continueSteps(for: state) {
-            Permissions.perform(step)
+        run(Permissions.continueSteps(for: state)[...])
+    }
+
+    /// Performs `steps` in order, waiting for the microphone prompt to be
+    /// answered before the Accessibility steps, so the two system dialogs
+    /// never stack.
+    private func run(_ steps: ArraySlice<Permissions.Step>) {
+        guard let step = steps.first else {
+            refresh()
+            return
         }
-        refresh()
+        let rest = steps.dropFirst()
+        if step == .requestMicrophone {
+            MicrophoneAccess.requestIfUndetermined { [weak self] in
+                MainActor.assumeIsolated { self?.run(rest) }
+            }
+            return
+        }
+        Permissions.perform(step)
+        run(rest)
     }
 
     func openMicrophoneSettings() {

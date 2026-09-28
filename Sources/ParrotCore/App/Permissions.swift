@@ -54,15 +54,15 @@ enum Permissions {
         isApp && !state.allGranted
     }
 
-    /// What Continue does for `state`, in order: the Accessibility prompt and
-    /// its pane, then the microphone. A denied microphone can only be turned
-    /// on in System Settings; its pane opens only when Accessibility is done,
-    /// so the two panes don't replace each other.
+    /// What Continue does for `state`, in order: the microphone prompt first,
+    /// since it is answered in place, then the Accessibility prompt and its
+    /// pane, so the user ends up where the one remaining switch is. The
+    /// window waits for the microphone answer before the next step. A denied
+    /// microphone can only be turned on in System Settings; its pane opens
+    /// only when Accessibility is done, so the two panes don't replace each
+    /// other.
     static func continueSteps(for state: PermissionState) -> [Step] {
         var steps: [Step] = []
-        if !state.accessibility {
-            steps += [.promptAccessibility, .openAccessibilitySettings]
-        }
         switch state.microphone {
         case .granted:
             break
@@ -70,6 +70,9 @@ enum Permissions {
             steps.append(.requestMicrophone)
         case .denied:
             if state.accessibility { steps.append(.openMicrophoneSettings) }
+        }
+        if !state.accessibility {
+            steps += [.promptAccessibility, .openAccessibilitySettings]
         }
         return steps
     }

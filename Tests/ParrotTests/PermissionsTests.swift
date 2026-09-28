@@ -40,7 +40,7 @@ final class PermissionsTests: XCTestCase {
     func testContinueOnAFreshInstallAsksForAccessibilityThenTheMicrophone() {
         XCTAssertEqual(
             Permissions.continueSteps(for: state(false, .notDetermined)),
-            [.promptAccessibility, .openAccessibilitySettings, .requestMicrophone]
+            [.requestMicrophone, .promptAccessibility, .openAccessibilitySettings]
         )
     }
 

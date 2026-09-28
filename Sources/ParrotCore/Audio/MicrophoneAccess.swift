@@ -13,12 +13,17 @@ package enum MicrophoneAccess {
     }
 
     /// Shows the system prompt if the user has never answered it. Returns at
-    /// once; the answer is only logged. Never blocks the main thread.
-    package static func requestIfUndetermined() {
-        guard status == .notDetermined else { return }
+    /// once; the answer is logged, then `answered` runs on the main queue
+    /// (at once if there was nothing to ask). Never blocks the main thread.
+    package static func requestIfUndetermined(then answered: (@Sendable () -> Void)? = nil) {
+        guard status == .notDetermined else {
+            answered?()
+            return
+        }
         Log.info("requesting microphone access")
         AVCaptureDevice.requestAccess(for: .audio) { granted in
             Log.info(granted ? "microphone access granted" : CaptureError.microphoneDenied.userMessage)
+            if let answered { DispatchQueue.main.async(execute: answered) }
         }
     }
 
