@@ -46,6 +46,18 @@ final class HALInput: CaptureInput {
         try prepare(device: InputDevice.current())
     }
 
+    /// With `keepsPrepared`, builds the unit ahead of the first press so a
+    /// press only has to start it. Never starts the device. Skipped until
+    /// microphone access is granted.
+    func prepareIdle() {
+        guard keepsPrepared, MicrophoneAccess.status == .authorized else { return }
+        do {
+            try prepare()
+        } catch {
+            Log.info("capture: input not prepared ahead of the press: \(error)")
+        }
+    }
+
     func start(device: InputDevice, sink: InputSink) throws -> InputDevice {
         try prepare(device: device)
         guard let unit, let context, let delivering else { throw CaptureError.noInputDevice }

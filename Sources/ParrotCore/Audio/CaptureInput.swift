@@ -8,6 +8,10 @@ public enum CaptureMode: String, CaseIterable, Sendable {
     case engine
     /// A Core Audio AUHAL input unit, built per press and disposed on release.
     case hal
+    /// The AUHAL unit built and initialized ahead of the press, and kept so
+    /// between presses, but started only by a press and stopped on release:
+    /// the device does not run between presses.
+    case prepared
 
     /// The mode a run uses unless told otherwise.
     public static let standard: CaptureMode = .engine
@@ -17,6 +21,7 @@ public enum CaptureMode: String, CaseIterable, Sendable {
         switch self {
         case .engine: return EngineInput()
         case .hal: return HALInput(keepsPrepared: false)
+        case .prepared: return HALInput(keepsPrepared: true)
         }
     }
 }
@@ -47,4 +52,11 @@ protocol CaptureInput: AnyObject {
     func start(device: InputDevice, sink: InputSink) throws -> InputDevice
     /// Stops the input. Safe to call when not started.
     func stop()
+    /// Does whatever setup can happen before a press without running the
+    /// device. Best effort: `start` redoes whatever this could not.
+    func prepareIdle()
+}
+
+extension CaptureInput {
+    func prepareIdle() {}
 }

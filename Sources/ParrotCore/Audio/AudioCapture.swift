@@ -47,6 +47,7 @@ final class AudioCapture {
     init(mode: CaptureMode = .standard) {
         self.mode = mode
         self.input = mode.makeInput()
+        input.prepareIdle()
     }
 
     /// Begin recording. Idempotent — calling while already recording is a no-op.
