@@ -54,6 +54,71 @@ final class AudioCaptureTests: XCTestCase {
         XCTAssertEqual(try buffer.finish(), [])
     }
 
+    // MARK: Press to first sample
+
+    func testFirstSampleAndFirstSoundAreMeasuredFromThePress() throws {
+        let buffer = CaptureBuffer()
+        buffer.reset(startedAt: 1_000_000_000)
+        XCTAssertTrue(buffer.awaitingSound)
+        // First buffer: captured 120 ms after the press, all zeros.
+        buffer.noteInput(firstFrameAt: 1_120_000_000, firstSoundAt: nil)
+        XCTAssertTrue(buffer.awaitingSound)
+        // Second buffer: sound starts 150 ms after the press.
+        buffer.noteInput(firstFrameAt: 1_130_000_000, firstSoundAt: 1_150_000_000)
+        XCTAssertFalse(buffer.awaitingSound)
+        buffer.noteInput(firstFrameAt: 1_140_000_000, firstSoundAt: 1_140_000_000)
+
+        let stats = buffer.currentStats
+        XCTAssertEqual(try XCTUnwrap(stats.firstSampleDelay), 0.120, accuracy: 1e-9)
+        XCTAssertEqual(try XCTUnwrap(stats.firstSoundDelay), 0.150, accuracy: 1e-9)
+
+        buffer.reset(startedAt: 2_000_000_000)
+        XCTAssertNil(buffer.currentStats.firstSampleDelay)
+        XCTAssertTrue(buffer.awaitingSound)
+    }
+
+    func testASampleCapturedBeforeThePressReadsNegative() throws {
+        // Would mean the input ran before the press; it must not wrap around.
+        let buffer = CaptureBuffer()
+        buffer.reset(startedAt: 1_000_000_000)
+        buffer.noteInput(firstFrameAt: 990_000_000, firstSoundAt: nil)
+        XCTAssertEqual(try XCTUnwrap(buffer.currentStats.firstSampleDelay), -0.010, accuracy: 1e-9)
+    }
+
+    func testFirstNonZeroFrame() throws {
+        let silent = try makeBuffer(sampleRate: 48_000, channels: 2, frames: 480)
+        let data = try XCTUnwrap(silent.floatChannelData)
+        for c in 0..<2 { for i in 0..<480 { data[c][i] = 0 } }
+        XCTAssertNil(AudioCapture.firstNonZeroFrame(silent))
+        data[1][300] = 0.01
+        XCTAssertEqual(AudioCapture.firstNonZeroFrame(silent), 300)
+        data[0][120] = -0.02
+        XCTAssertEqual(AudioCapture.firstNonZeroFrame(silent), 120)
+    }
+
+    func testInputHandlerNotesTimingAndConverts() throws {
+        let buffer = CaptureBuffer()
+        let cache = ConverterCache(targetFormat: AudioCapture.targetFormat)
+        buffer.reset(startedAt: 1_000_000_000)
+        let handle = AudioCapture.inputHandler(buffer: buffer, converters: cache, onLevel: nil)
+        let pcm = try makeBuffer(sampleRate: 48_000, channels: 1, frames: 4_800)
+        // The sine starts at zero, so sound starts one frame in: ~20.8 µs.
+        handle(pcm, 1_100_000_000, 1_200_000_000)
+        let stats = buffer.currentStats
+        XCTAssertEqual(try XCTUnwrap(stats.firstSampleDelay), 0.100, accuracy: 1e-9)
+        XCTAssertEqual(try XCTUnwrap(stats.firstSoundDelay), 0.100 + 1.0 / 48_000, accuracy: 1e-6)
+        XCTAssertEqual(try XCTUnwrap(stats.firstBufferDelay), 0.200, accuracy: 1e-9)
+        XCTAssertEqual(stats.inputFrames, 4_800)
+    }
+
+    func testHostClockConvertsAndSubtractsSigned() {
+        XCTAssertEqual(HostClock.seconds(from: 2_000_000_000, to: 1_500_000_000), -0.5, accuracy: 1e-12)
+        let a = HostClock.now()
+        let b = HostClock.nanoseconds(fromHostTime: mach_absolute_time())
+        XCTAssertGreaterThanOrEqual(b, a)
+        XCTAssertLessThan(b - a, 1_000_000_000)
+    }
+
     func testResetClearsARouteChangeFromTheLastRecording() {
         let buffer = CaptureBuffer()
         buffer.markRouteChanged()

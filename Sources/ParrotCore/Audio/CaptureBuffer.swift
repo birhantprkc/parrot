@@ -14,6 +14,13 @@ final class CaptureBuffer: @unchecked Sendable {
         var conversionFailures = 0
         /// Seconds from `start()` to the first buffer, or nil if none arrived.
         var firstBufferDelay: TimeInterval?
+        /// Seconds from `start()` (the press) to the moment the first sample
+        /// of the recording was captured, by the buffer's host timestamp:
+        /// anything said before it is lost. Nil if no buffer arrived.
+        var firstSampleDelay: TimeInterval?
+        /// The same to the first sample that is not exactly zero. Some inputs
+        /// deliver digital silence while they settle; that is lost too.
+        var firstSoundDelay: TimeInterval?
     }
 
     private let lock = NSLock()
@@ -23,7 +30,7 @@ final class CaptureBuffer: @unchecked Sendable {
     private var startedAt: UInt64 = 0
 
     /// Clears everything for a new recording that started at `startedAt`
-    /// (`DispatchTime` uptime nanoseconds).
+    /// (`HostClock` nanoseconds).
     func reset(startedAt: UInt64) {
         lock.lock()
         defer { lock.unlock() }
@@ -38,11 +45,33 @@ final class CaptureBuffer: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         if stats.firstBufferDelay == nil {
-            stats.firstBufferDelay = Double(now &- startedAt) / 1_000_000_000
+            stats.firstBufferDelay = HostClock.seconds(from: startedAt, to: now)
         }
         stats.buffers += 1
         stats.inputFrames += inputFrames
         samples.append(contentsOf: chunk)
+    }
+
+    /// Records when the first frame of an input buffer was captured, and
+    /// the first non-zero frame if it has one (host nanoseconds). Only the
+    /// first of each counts.
+    func noteInput(firstFrameAt: UInt64, firstSoundAt: UInt64?) {
+        lock.lock()
+        defer { lock.unlock() }
+        if stats.firstSampleDelay == nil {
+            stats.firstSampleDelay = HostClock.seconds(from: startedAt, to: firstFrameAt)
+        }
+        if stats.firstSoundDelay == nil, let firstSoundAt {
+            stats.firstSoundDelay = HostClock.seconds(from: startedAt, to: firstSoundAt)
+        }
+    }
+
+    /// True until a non-zero sample has been noted, so the audio thread
+    /// scans for one only while it matters.
+    var awaitingSound: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return stats.firstSoundDelay == nil
     }
 
     /// Appends the converter's tail after the last callback. Not counted as

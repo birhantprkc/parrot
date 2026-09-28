@@ -61,6 +61,16 @@ final class LatencyLogTests: XCTestCase {
         )
     }
 
+    func testLineWithPressToFirstSample() {
+        let result = DictationResult(
+            captureDuration: 2, transcriptionTime: 0.2, charCount: 10, releaseToText: 0.21, pressToFirstSample: 0.1724
+        )
+        XCTAssertEqual(
+            LatencyLog.line(for: result),
+            "⏱ 210 ms release→text · 2.0 s audio · press→first sample 172 ms · stop 0 · transcribe 200 · process 0 · deliver 0 ms"
+        )
+    }
+
     func testLogsOnFinish() {
         var lines: [String] = []
         let log = LatencyLog { lines.append($0) }

@@ -23,6 +23,10 @@ final class AudioCapture {
     /// Invoked on an arbitrary thread; hop to main if you touch UI.
     var onLevel: ((Float) -> Void)?
 
+    /// Counts and timings of the last finished capture, including press to
+    /// first sample. Nil until one finishes.
+    private(set) var lastStats: CaptureBuffer.Stats?
+
     private var engine: AVAudioEngine?
     private var inputNode: AVAudioInputNode?
     private var configurationObserver: NSObjectProtocol?
@@ -36,6 +40,8 @@ final class AudioCapture {
     /// Throws `CaptureError`; on a throw nothing is left running.
     func start() throws {
         guard engine == nil else { return }
+        // The press. Press-to-first-sample is measured from here.
+        let startedAt = HostClock.now()
 
         if let error = MicrophoneAccess.captureError(for: MicrophoneAccess.status) {
             // A press is the one moment the user is looking; ask again if the
@@ -48,7 +54,6 @@ final class AudioCapture {
         // or a 0 Hz / 0 channel format raises an ObjC exception later.
         let device = try InputDevice.current()
 
-        let startedAt = DispatchTime.now().uptimeNanoseconds
         let engine = AVAudioEngine()
         let input = engine.inputNode
         let hardware = input.inputFormat(forBus: 0)
@@ -60,8 +65,6 @@ final class AudioCapture {
         buffer.reset(startedAt: startedAt)
 
         let buffer = self.buffer
-        let converters = self.converters
-        let onLevel = self.onLevel
         let observer = NotificationCenter.default.addObserver(
             forName: .AVAudioEngineConfigurationChange,
             object: engine,
@@ -76,13 +79,13 @@ final class AudioCapture {
         // Passing a format read before start() crashes when the hardware
         // runs at a different one. The converter is built from the first
         // buffer instead.
-        input.installTap(onBus: 0, bufferSize: 4096, format: nil) { pcm, _ in
-            let now = DispatchTime.now().uptimeNanoseconds
-            let converted = converters.convert(pcm) { chunk in
-                buffer.append(chunk, inputFrames: Int(pcm.frameLength), at: now)
-                onLevel?(computeRMS(chunk))
-            }
-            if !converted { buffer.recordConversionFailure() }
+        let handle = Self.inputHandler(buffer: buffer, converters: converters, onLevel: onLevel)
+        input.installTap(onBus: 0, bufferSize: 4096, format: nil) { pcm, when in
+            let now = HostClock.now()
+            let firstFrame = when.isHostTimeValid
+                ? HostClock.nanoseconds(fromHostTime: when.hostTime)
+                : now &- UInt64(Double(pcm.frameLength) / pcm.format.sampleRate * 1_000_000_000)
+            handle(pcm, firstFrame, now)
         }
 
         engine.prepare()
@@ -99,7 +102,7 @@ final class AudioCapture {
         self.configurationObserver = observer
         self.device = device
         self.tap = InputDevice(sampleRate: tapFormat.sampleRate, channels: tapFormat.channelCount)
-        self.engineStartDelay = Double(DispatchTime.now().uptimeNanoseconds - startedAt) / 1_000_000_000
+        self.engineStartDelay = HostClock.seconds(from: startedAt, to: HostClock.now())
     }
 
     /// Stop recording and return all captured samples (16 kHz mono Float32).
@@ -132,19 +135,66 @@ final class AudioCapture {
 
         // The tap has stopped; flush what the resampler still holds.
         converters.drain { buffer.appendTail($0) }
-        logStats(buffer.currentStats)
+        let stats = buffer.currentStats
+        lastStats = stats
+        logStats(stats)
         return try buffer.finish()
     }
 
-    /// One line per recording: counts and timings, never audio. The first
-    /// buffer delay is the start latency a fresh engine adds.
+    /// The body of an input callback: note when the buffer's first sample,
+    /// and its first non-zero sample, were captured, then convert to 16 kHz
+    /// and append. `firstFrame` and `now` are `HostClock` nanoseconds.
+    static func inputHandler(
+        buffer: CaptureBuffer,
+        converters: ConverterCache,
+        onLevel: ((Float) -> Void)?
+    ) -> (_ pcm: AVAudioPCMBuffer, _ firstFrame: UInt64, _ now: UInt64) -> Void {
+        return { pcm, firstFrame, now in
+            var firstSound: UInt64?
+            if buffer.awaitingSound, pcm.format.sampleRate > 0, let frame = firstNonZeroFrame(pcm) {
+                firstSound = firstFrame &+ UInt64(Double(frame) / pcm.format.sampleRate * 1_000_000_000)
+            }
+            buffer.noteInput(firstFrameAt: firstFrame, firstSoundAt: firstSound)
+            let converted = converters.convert(pcm) { chunk in
+                buffer.append(chunk, inputFrames: Int(pcm.frameLength), at: now)
+                onLevel?(computeRMS(chunk))
+            }
+            if !converted { buffer.recordConversionFailure() }
+        }
+    }
+
+    /// The first frame in which any channel is not exactly zero, or nil.
+    static func firstNonZeroFrame(_ pcm: AVAudioPCMBuffer) -> Int? {
+        guard let channels = pcm.floatChannelData else { return nil }
+        let interleaved = pcm.format.isInterleaved
+        let stride = pcm.stride
+        var first: Int?
+        for c in 0..<Int(pcm.format.channelCount) {
+            let data = channels[interleaved ? 0 : c]
+            let offset = interleaved ? c : 0
+            var i = 0
+            let limit = first ?? Int(pcm.frameLength)
+            while i < limit {
+                if data[i * stride + offset] != 0 {
+                    first = i
+                    break
+                }
+                i += 1
+            }
+        }
+        return first
+    }
+
+    /// One line per recording: counts and timings, never audio. Press to
+    /// first sample is the start of the dictation the user loses.
     private func logStats(_ stats: CaptureBuffer.Stats) {
-        let firstBuffer = stats.firstBufferDelay.map { String(format: "%.0f ms", $0 * 1000) } ?? "none"
+        func ms(_ delay: TimeInterval?) -> String { delay.map { String(format: "%.0f ms", $0 * 1000) } ?? "none" }
         var line = String(
             format: "  input %.0f Hz × %u · tap %.0f Hz × %u · engine start %.0f ms",
             device.sampleRate, device.channels, tap.sampleRate, tap.channels, engineStartDelay * 1000
         )
-        line += " · first buffer \(firstBuffer) · \(stats.buffers) buffers · \(stats.inputFrames) frames"
+        line += " · press→first sample \(ms(stats.firstSampleDelay)) · first sound \(ms(stats.firstSoundDelay))"
+        line += " · first buffer \(ms(stats.firstBufferDelay)) · \(stats.buffers) buffers · \(stats.inputFrames) frames"
         if stats.conversionFailures > 0 {
             line += " · \(stats.conversionFailures) conversion failures"
         }

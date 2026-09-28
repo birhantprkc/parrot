@@ -61,7 +61,7 @@ Sources/ParrotCore/
   App/
     DictationController.swift   the dictation loop: gesture → capture → transcribe → process → deliver
     DictationObserver.swift     observer protocol and DictationResult (counts and timings, never text)
-    LatencyLog.swift            one log line per dictation: release-to-text and each stage, as a DictationObserver
+    LatencyLog.swift            one log line per dictation: press-to-first-sample, release-to-text and each stage, as a DictationObserver
     Startup.swift               startup checks and StartupFailure (permanent vs transient)
     Daemon.swift                the `run` command: startup, wiring, run loop
     Updater.swift               Sparkle auto-update, started only in the app role
@@ -84,6 +84,7 @@ Sources/ParrotCore/
     TextInjector.swift          delivery into the focused field (paste or typed Unicode)
   Audio/
     AudioCapture.swift          capture engine, device selection, format conversion
+    HostClock.swift             host time in nanoseconds, to compare a press with Core Audio buffer timestamps
     SilenceTrimmer.swift        cuts leading and trailing silence before transcription (pure, tested)
   Transcription/
     Transcriber.swift           protocol and TranscriptionContext

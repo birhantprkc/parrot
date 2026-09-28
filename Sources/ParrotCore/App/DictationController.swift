@@ -95,6 +95,7 @@ final class DictationController {
             return
         }
         let captureStop = CFAbsoluteTimeGetCurrent() - released
+        let pressToFirstSample = capture.lastStats?.firstSampleDelay
         let focus = focusAtStart
         focusAtStart = nil
         state = .transcribing
@@ -142,7 +143,8 @@ final class DictationController {
                     transcriber: raw.timings,
                     processing: processed - transcribed,
                     delivery: done - processed,
-                    releaseToText: done - released
+                    releaseToText: done - released,
+                    pressToFirstSample: pressToFirstSample
                 )
                 observers.forEach { $0.dictationFinished(result) }
             } catch {

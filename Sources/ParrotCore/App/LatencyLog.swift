@@ -15,7 +15,8 @@ final class LatencyLog: DictationObserver {
         write(Self.line(for: result))
     }
 
-    /// For example: `⏱ 412 ms release→text · 5.3 s audio · stop 3 · pre 4 ·
+    /// For example: `⏱ 412 ms release→text · 5.3 s audio ·
+    /// press→first sample 142 ms · stop 3 · pre 4 ·
     /// enc 14 · dec 380 · post 1 · process 0 · deliver 2 ms · 17 tokens ·
     /// 1 window · 0 fallbacks`.
     static func line(for result: DictationResult) -> String {
@@ -23,8 +24,12 @@ final class LatencyLog: DictationObserver {
         var parts = [
             "⏱ \(ms(result.releaseToText)) ms release→text",
             String(format: "%.1f s audio", result.captureDuration),
-            "stop \(ms(result.captureStop))",
         ]
+        // The other end of the dictation (#52): what the start of it lost.
+        if let press = result.pressToFirstSample {
+            parts.append("press→first sample \(ms(press)) ms")
+        }
+        parts.append("stop \(ms(result.captureStop))")
         if let t = result.transcriber {
             parts += [
                 "pre \(ms(t.preprocessing))",
