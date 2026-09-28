@@ -1,14 +1,17 @@
+import CoreML
 import Foundation
 import WhisperKit
 
 actor WhisperKitTranscriber: Transcriber {
     let modelID: String
     private let model: TranscriptionModel
+    let tuning: WhisperTuning
     private var pipeline: WhisperKit?
 
-    init(model: TranscriptionModel) {
+    init(model: TranscriptionModel, tuning: WhisperTuning = .standard) {
         self.modelID = model.id
         self.model = model
+        self.tuning = tuning
     }
 
     /// Loads the model into memory; downloads first if not already on disk.
@@ -27,6 +30,11 @@ actor WhisperKitTranscriber: Transcriber {
         let config = WhisperKitConfig(
             model: whisperKitID,
             downloadBase: base,
+            computeOptions: ModelComputeOptions(
+                melCompute: tuning.melCompute,
+                audioEncoderCompute: tuning.encoderCompute,
+                textDecoderCompute: tuning.decoderCompute
+            ),
             verbose: false,
             prewarm: true,
             load: true
@@ -43,9 +51,10 @@ actor WhisperKitTranscriber: Transcriber {
         guard let pipeline else { throw TranscriberError.notLoaded }
 
         let started = CFAbsoluteTimeGetCurrent()
-        var options = DecodingOptions()
-        options.language = context.language
-        options.promptTokens = Self.promptTokens(for: context.prompt, tokenizer: pipeline.tokenizer)
+        let options = tuning.decodingOptions(
+            language: context.language,
+            promptTokens: Self.promptTokens(for: context.prompt, tokenizer: pipeline.tokenizer)
+        )
         let results = try await pipeline.transcribe(audioArray: audio, decodeOptions: options)
         let raw = results.map(\.text).joined(separator: " ")
         let text = Self.sanitize(raw)

@@ -9,7 +9,7 @@ struct Parrot: ParsableCommand {
         commandName: "parrot",
         abstract: "Minimal macOS dictation daemon. Hold Fn, speak, release.",
         version: AppBundle.version,
-        subcommands: [Run.self, Setup.self, Doctor.self, Models.self, Install.self],
+        subcommands: [Run.self, Setup.self, Doctor.self, Models.self, Install.self, Bench.self],
         defaultSubcommand: Run.self
     )
 }
@@ -115,6 +115,53 @@ struct Models: ParsableCommand {
 
         func run() throws {
             try exiting { try ModelCommands.download(id) }
+        }
+    }
+}
+
+/// Transcription latency over local recordings (#49).
+struct Bench: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "Time the model over a folder of recordings: median and p90 per stage.",
+        discussion: """
+            Runs the model over every .wav file in the folder and prints each \
+            transcription stage's median and p90 in milliseconds. A .txt file \
+            beside a recording, holding what was said, adds its word error rate. \
+            Prints timings and counts, never transcript text.
+            """
+    )
+
+    @Argument(help: "Folder of .wav recordings.") var folder: String
+
+    @Option(name: .long, help: "Timed runs per file.") var runs: Int = 10
+
+    @Option(name: .long, help: "Model id to use. Defaults to the recommended model.") var model: String?
+
+    @Option(name: .long, help: "Prompt text to use instead of the dictionary's example sentence.") var prompt: String?
+
+    @Flag(name: .long, help: "Run without a prompt.") var noPrompt: Bool = false
+
+    @Flag(name: .long, help: "Use WhisperKit's default settings, as Parrot ran before #49, to compare.") var baseline: Bool = false
+
+    @Option(name: .long, help: "Compute units for the audio encoder: ane, gpu, cpu or all.") var encoder: String?
+
+    @Option(name: .long, help: "Compute units for the text decoder: ane, gpu, cpu or all.") var decoder: String?
+
+    @Option(name: .long, help: "Seconds to sit idle before each timed run.") var pause: Double = 0
+
+    func run() throws {
+        try exiting {
+            try ParrotCore.Bench.run(BenchOptions(
+                folder: folder,
+                runs: runs,
+                model: model,
+                prompt: prompt,
+                noPrompt: noPrompt,
+                baseline: baseline,
+                encoder: encoder,
+                decoder: decoder,
+                pause: pause
+            ))
         }
     }
 }

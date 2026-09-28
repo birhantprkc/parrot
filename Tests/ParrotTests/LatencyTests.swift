@@ -69,3 +69,13 @@ final class LatencyLogTests: XCTestCase {
     }
 }
 
+final class WhisperTuningTests: XCTestCase {
+    func testBaselineKeepsWhisperKitDefaults() {
+        let options = WhisperTuning.baseline.decodingOptions(language: "en", promptTokens: [1, 2])
+        XCTAssertFalse(options.withoutTimestamps)
+        XCTAssertEqual(options.language, "en")
+        XCTAssertEqual(options.promptTokens, [1, 2])
+        XCTAssertEqual(WhisperTuning.baseline.melCompute, .cpuAndGPU)
+    }
+}
+

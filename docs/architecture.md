@@ -68,7 +68,7 @@ Sources/ParrotCore/
     AppLaunch.swift             the app role: bundle detection, single instance, migration off the old LaunchAgent
     LoginItem.swift, CommandLineLink.swift
                                 launch at login (SMAppService) and the `parrot` symlink into the bundle
-    Setup.swift, Doctor.swift, ModelCommands.swift
+    Setup.swift, Doctor.swift, ModelCommands.swift, Bench.swift
                                 bodies of the other commands
   Support/
     Paths.swift                 every on-disk location Parrot uses
@@ -88,6 +88,7 @@ Sources/ParrotCore/
     Transcriber.swift           protocol and TranscriptionContext
     TranscriberTimings.swift    where a transcription spent its time, per stage
     WhisperKitTranscriber.swift
+    WhisperTuning.swift         compute units and decoding options, each measured with `parrot bench`
     ModelRegistry.swift, TranscriptionModel.swift, ModelStore.swift
   Pipeline/
     Transcript.swift            the value that flows through processing
@@ -106,7 +107,7 @@ Sources/ParrotCore/
     Sections/                   one view per settings section
 
 Sources/parrot/
-  main.swift                    ArgumentParser commands: run, setup, doctor, models, install
+  main.swift                    ArgumentParser commands: run, setup, doctor, models, install, bench
 
 Tests/ParrotTests/
 ```
