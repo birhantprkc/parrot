@@ -62,6 +62,8 @@ public enum Daemon {
         if let overlay {
             capture.onLevel = { level in overlay.pushLevel(level) }
         }
+        // Before the menu, which shows "Check for Updates…" only when running.
+        if AppLaunch.isApp { Updater.start() }
         let menuBar = MenuBarController(modelID: model.id)
 
         // The dictionary (#33): created on first run, reloaded when it changes.

@@ -5,7 +5,7 @@ import AppKit
 /// (since we run as `.accessory` — no dock icon, no main window).
 ///
 /// The menu has named slots, top to bottom: `statusLine`, `modelLine`,
-/// `settingsItem`, `launchAtLoginItem`, `quitItem`. Features update a slot rather than rebuilding
+/// `settingsItem`, `launchAtLoginItem`, `checkForUpdatesItem`, `quitItem`. Features update a slot rather than rebuilding
 /// the menu.
 @MainActor
 final class MenuBarController {
@@ -22,6 +22,9 @@ final class MenuBarController {
     /// Hidden outside Parrot.app, where there is no bundle to register.
     let launchAtLoginItem: NSMenuItem
     private let launchAtLogin = LaunchAtLoginToggle()
+    /// Slot: asks Sparkle to check now. Hidden unless the updater is running,
+    /// which it is only in Parrot.app's release builds.
+    let checkForUpdatesItem: NSMenuItem
     /// Slot: quits parrot.
     let quitItem: NSMenuItem
 
@@ -55,6 +58,14 @@ final class MenuBarController {
         menu.addItem(launchAtLoginItem)
         menu.delegate = launchAtLogin
 
+        checkForUpdatesItem = NSMenuItem(
+            title: "Check for Updates…",
+            action: #selector(checkForUpdatesClicked),
+            keyEquivalent: ""
+        )
+        checkForUpdatesItem.isHidden = !Updater.isRunning
+        menu.addItem(checkForUpdatesItem)
+
         quitItem = NSMenuItem(
             title: "Quit parrot",
             action: #selector(quitClicked),
@@ -64,6 +75,7 @@ final class MenuBarController {
 
         statusItem.menu = menu
         quitItem.target = self
+        checkForUpdatesItem.target = self
         configureButton()
     }
 
@@ -109,6 +121,10 @@ final class MenuBarController {
         // Menu-bar status icons are nominally 18pt tall; size the SVG to match.
         image.size = NSSize(width: 16, height: 16)
         return image
+    }
+
+    @objc private func checkForUpdatesClicked() {
+        Updater.checkForUpdates()
     }
 
     @objc private func quitClicked() {

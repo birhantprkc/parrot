@@ -32,5 +32,20 @@
 	<string>Copyright © Humanitas Labs. MIT License.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Parrot records while you hold the dictation key and turns your speech into text on this Mac. Audio never leaves it.</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/humanitas-labs/parrot/releases/latest/download/appcast.xml</string>
+	<!-- Placeholder until the release key exists: Sparkle's generate_keys prints the public key to
+	     put here, and the private key is the SPARKLE_PRIVATE_KEY repository secret (see
+	     .github/workflows/release.yml). Updates stay off while this is not a real key. -->
+	<key>SUPublicEDKey</key>
+	<string>REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
 </dict>
 </plist>
