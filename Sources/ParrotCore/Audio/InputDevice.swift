@@ -1,8 +1,8 @@
 import CoreAudio
 import Foundation
 
-/// The default input device as Core Audio reports it, read before
-/// `AVAudioEngine` touches it.
+/// The default input device as Core Audio reports it, read before any
+/// capture path touches it.
 ///
 /// With no input device, or one that reports 0 Hz or 0 channels,
 /// `AVAudioEngine` raises an Objective-C exception on `installTap` or
@@ -11,14 +11,31 @@ import Foundation
 struct InputDevice: Equatable {
     var sampleRate: Double
     var channels: UInt32
+    /// The Core Audio device, or `kAudioObjectUnknown` when not read from one.
+    var id: AudioDeviceID = kAudioObjectUnknown
 
     /// The current default input. Throws `CaptureError.noInputDevice` if there
     /// is none, or `.invalidInputFormat` if it cannot be recorded.
     static func current() throws -> InputDevice {
         guard let id = defaultInputID() else { throw CaptureError.noInputDevice }
-        let device = InputDevice(sampleRate: nominalSampleRate(id), channels: inputChannels(id))
+        let device = InputDevice(sampleRate: nominalSampleRate(id), channels: inputChannels(id), id: id)
         try validate(sampleRate: device.sampleRate, channels: device.channels)
         return device
+    }
+
+    /// The device's name as the Sound settings show it, or nil.
+    static func name(of id: AudioDeviceID) -> String? {
+        var name: Unmanaged<CFString>?
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioObjectPropertyName,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectGetPropertyData(id, &address, 0, nil, &size, &name) == noErr,
+              let value = name?.takeRetainedValue()
+        else { return nil }
+        return value as String
     }
 
     /// Throws `CaptureError.invalidInputFormat` unless both are positive.
@@ -28,7 +45,7 @@ struct InputDevice: Equatable {
         }
     }
 
-    private static func defaultInputID() -> AudioDeviceID? {
+    static func defaultInputID() -> AudioDeviceID? {
         var id = AudioDeviceID(kAudioObjectUnknown)
         var size = UInt32(MemoryLayout<AudioDeviceID>.size)
         var address = AudioObjectPropertyAddress(
@@ -43,7 +60,7 @@ struct InputDevice: Equatable {
         return id
     }
 
-    private static func nominalSampleRate(_ id: AudioDeviceID) -> Double {
+    static func nominalSampleRate(_ id: AudioDeviceID) -> Double {
         var rate: Float64 = 0
         var size = UInt32(MemoryLayout<Float64>.size)
         var address = AudioObjectPropertyAddress(
@@ -55,7 +72,7 @@ struct InputDevice: Equatable {
         return rate
     }
 
-    private static func inputChannels(_ id: AudioDeviceID) -> UInt32 {
+    static func inputChannels(_ id: AudioDeviceID) -> UInt32 {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyStreamConfiguration,
             mScope: kAudioDevicePropertyScopeInput,

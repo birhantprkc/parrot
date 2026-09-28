@@ -21,6 +21,8 @@ final class CaptureBuffer: @unchecked Sendable {
         /// The same to the first sample that is not exactly zero. Some inputs
         /// deliver digital silence while they settle; that is lost too.
         var firstSoundDelay: TimeInterval?
+        /// Buffers the input failed to deliver (a render error).
+        var inputFailures = 0
     }
 
     private let lock = NSLock()
@@ -28,6 +30,8 @@ final class CaptureBuffer: @unchecked Sendable {
     private var stats = Stats()
     private var routeChanged = false
     private var startedAt: UInt64 = 0
+    private var isOpen = false
+    private var closedBuffers = 0
 
     /// Clears everything for a new recording that started at `startedAt`
     /// (`HostClock` nanoseconds).
@@ -38,6 +42,30 @@ final class CaptureBuffer: @unchecked Sendable {
         stats = Stats()
         routeChanged = false
         self.startedAt = startedAt
+        isOpen = true
+    }
+
+    /// True while a recording is open. A buffer arriving outside one is
+    /// counted and must be dropped: it means the input ran between presses.
+    func admit() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if !isOpen { closedBuffers += 1 }
+        return isOpen
+    }
+
+    /// Buffers that arrived while no recording was open, over this buffer's
+    /// lifetime. Zero unless an input ran between presses.
+    var buffersWhileClosed: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return closedBuffers
+    }
+
+    func recordInputFailure() {
+        lock.lock()
+        defer { lock.unlock() }
+        stats.inputFailures += 1
     }
 
     /// Appends converted 16 kHz samples from one tap callback.
@@ -112,6 +140,7 @@ final class CaptureBuffer: @unchecked Sendable {
         let changed = routeChanged
         samples.removeAll(keepingCapacity: true)
         routeChanged = false
+        isOpen = false
         lock.unlock()
         if changed { throw CaptureError.routeChanged }
         return captured

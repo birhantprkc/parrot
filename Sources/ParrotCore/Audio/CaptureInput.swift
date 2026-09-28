@@ -1,0 +1,47 @@
+import AVFoundation
+import Foundation
+
+/// How `AudioCapture` gets samples from the microphone (#52). Every mode
+/// runs the input only while the hotkey is held.
+public enum CaptureMode: String, CaseIterable, Sendable {
+    /// A fresh `AVAudioEngine` per press, released on release (#39).
+    case engine
+
+    /// The mode a run uses unless told otherwise.
+    public static let standard: CaptureMode = .engine
+
+    /// The input that implements this mode.
+    func makeInput() -> CaptureInput {
+        switch self {
+        case .engine: return EngineInput()
+        }
+    }
+}
+
+/// Where an input delivers what it captures. Called on the input's own
+/// realtime thread.
+struct InputSink {
+    /// One buffer at the input's own format, the host time its first frame
+    /// was captured, and the host time of the callback (`HostClock`
+    /// nanoseconds).
+    var deliver: (_ pcm: AVAudioPCMBuffer, _ firstFrame: UInt64, _ now: UInt64) -> Void
+    /// The input route changed; the recording must be discarded.
+    var routeChanged: () -> Void
+    /// The input failed to produce a buffer it was due.
+    var inputFailed: () -> Void
+}
+
+/// One way of running the microphone for a single recording. `AudioCapture`
+/// owns the checks before it and the conversion and bookkeeping after it.
+///
+/// `start` and `stop` are called in pairs on one thread. Between them the
+/// input delivers to the sink; after `stop` returns it delivers nothing and
+/// the device is no longer running for this process.
+protocol CaptureInput: AnyObject {
+    /// Starts the input on `device` (already validated). Throws
+    /// `CaptureError`; on a throw nothing is left running. Returns the
+    /// format the input delivers.
+    func start(device: InputDevice, sink: InputSink) throws -> InputDevice
+    /// Stops the input. Safe to call when not started.
+    func stop()
+}

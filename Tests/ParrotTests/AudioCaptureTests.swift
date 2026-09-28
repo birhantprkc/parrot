@@ -111,6 +111,34 @@ final class AudioCaptureTests: XCTestCase {
         XCTAssertEqual(stats.inputFrames, 4_800)
     }
 
+    func testBuffersOutsideARecordingAreCountedAndDropped() throws {
+        let buffer = CaptureBuffer()
+        let cache = ConverterCache(targetFormat: AudioCapture.targetFormat)
+        let handle = AudioCapture.inputHandler(buffer: buffer, converters: cache, onLevel: nil)
+        let pcm = try makeBuffer(sampleRate: 48_000, channels: 1, frames: 480)
+
+        handle(pcm, 0, 0)
+        XCTAssertEqual(buffer.buffersWhileClosed, 1)
+        XCTAssertEqual(buffer.currentStats.buffers, 0)
+
+        buffer.reset(startedAt: 0)
+        handle(pcm, 0, 0)
+        XCTAssertEqual(buffer.currentStats.buffers, 1)
+        _ = try buffer.finish()
+        handle(pcm, 0, 0)
+        XCTAssertEqual(buffer.buffersWhileClosed, 2)
+    }
+
+    func testInputFailuresAreCountedPerRecording() {
+        let buffer = CaptureBuffer()
+        buffer.reset(startedAt: 0)
+        buffer.recordInputFailure()
+        buffer.recordInputFailure()
+        XCTAssertEqual(buffer.currentStats.inputFailures, 2)
+        buffer.reset(startedAt: 0)
+        XCTAssertEqual(buffer.currentStats.inputFailures, 0)
+    }
+
     func testHostClockConvertsAndSubtractsSigned() {
         XCTAssertEqual(HostClock.seconds(from: 2_000_000_000, to: 1_500_000_000), -0.5, accuracy: 1e-12)
         let a = HostClock.now()

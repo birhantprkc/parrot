@@ -5,10 +5,10 @@ import Foundation
 /// mono Float32 buffer when stopped. Format-converts on the fly so callers
 /// don't have to worry about the input device's native rate.
 ///
-/// Each recording gets a fresh `AVAudioEngine`, released on stop. A
-/// long-lived engine keeps the input graph it was built with, so after
-/// sleep, docking, or connecting AirPods it records the wrong format or
-/// nothing; releasing it also lets a Bluetooth mic close between recordings.
+/// The microphone runs only between `start()` and `stop()`. How it runs is
+/// the `CaptureMode`'s `CaptureInput`; the checks before it (permission, a
+/// usable device) and the conversion and bookkeeping after it are here and
+/// shared by every mode.
 final class AudioCapture {
     static let targetSampleRate: Double = 16_000
 
@@ -23,23 +23,36 @@ final class AudioCapture {
     /// Invoked on an arbitrary thread; hop to main if you touch UI.
     var onLevel: ((Float) -> Void)?
 
+    let mode: CaptureMode
+
     /// Counts and timings of the last finished capture, including press to
     /// first sample. Nil until one finishes.
     private(set) var lastStats: CaptureBuffer.Stats?
 
-    private var engine: AVAudioEngine?
-    private var inputNode: AVAudioInputNode?
-    private var configurationObserver: NSObjectProtocol?
+    /// Buffers any input delivered while no recording was open. Stays 0
+    /// unless an input ran between presses.
+    var buffersWhileStopped: Int { buffer.buffersWhileClosed }
+
+    /// The recording so far, for callers that wait on the first sample.
+    var currentStats: CaptureBuffer.Stats { buffer.currentStats }
+
+    private let input: CaptureInput
+    private var recording = false
     private var device = InputDevice(sampleRate: 0, channels: 0)
-    private var tap = InputDevice(sampleRate: 0, channels: 0)
-    private var engineStartDelay: TimeInterval = 0
+    private var delivered = InputDevice(sampleRate: 0, channels: 0)
+    private var startDelay: TimeInterval = 0
     private let converters = ConverterCache(targetFormat: AudioCapture.targetFormat)
     private let buffer = CaptureBuffer()
+
+    init(mode: CaptureMode = .standard) {
+        self.mode = mode
+        self.input = mode.makeInput()
+    }
 
     /// Begin recording. Idempotent — calling while already recording is a no-op.
     /// Throws `CaptureError`; on a throw nothing is left running.
     func start() throws {
-        guard engine == nil else { return }
+        guard !recording else { return }
         // The press. Press-to-first-sample is measured from here.
         let startedAt = HostClock.now()
 
@@ -50,59 +63,27 @@ final class AudioCapture {
             throw error
         }
 
-        // Check the device before AVAudioEngine touches it: a missing input
-        // or a 0 Hz / 0 channel format raises an ObjC exception later.
+        // Check the device before any input touches it: a missing input or a
+        // 0 Hz / 0 channel format raises an ObjC exception in AVAudioEngine.
         let device = try InputDevice.current()
-
-        let engine = AVAudioEngine()
-        let input = engine.inputNode
-        let hardware = input.inputFormat(forBus: 0)
-        try InputDevice.validate(sampleRate: hardware.sampleRate, channels: hardware.channelCount)
-        let tapFormat = input.outputFormat(forBus: 0)
-        try InputDevice.validate(sampleRate: tapFormat.sampleRate, channels: tapFormat.channelCount)
 
         converters.resetAll()
         buffer.reset(startedAt: startedAt)
-
         let buffer = self.buffer
-        let observer = NotificationCenter.default.addObserver(
-            forName: .AVAudioEngineConfigurationChange,
-            object: engine,
-            queue: nil
-        ) { _ in
-            // Tearing the engine down inside this notification is unsafe.
-            // Flag it; stop() cleans up and discards the partial capture.
-            buffer.markRouteChanged()
-        }
-
-        // format: nil taps in whatever format the input actually delivers.
-        // Passing a format read before start() crashes when the hardware
-        // runs at a different one. The converter is built from the first
-        // buffer instead.
-        let handle = Self.inputHandler(buffer: buffer, converters: converters, onLevel: onLevel)
-        input.installTap(onBus: 0, bufferSize: 4096, format: nil) { pcm, when in
-            let now = HostClock.now()
-            let firstFrame = when.isHostTimeValid
-                ? HostClock.nanoseconds(fromHostTime: when.hostTime)
-                : now &- UInt64(Double(pcm.frameLength) / pcm.format.sampleRate * 1_000_000_000)
-            handle(pcm, firstFrame, now)
-        }
-
-        engine.prepare()
+        let sink = InputSink(
+            deliver: Self.inputHandler(buffer: buffer, converters: converters, onLevel: onLevel),
+            routeChanged: { buffer.markRouteChanged() },
+            inputFailed: { buffer.recordInputFailure() }
+        )
         do {
-            try engine.start()
+            delivered = try input.start(device: device, sink: sink)
         } catch {
-            input.removeTap(onBus: 0)
-            NotificationCenter.default.removeObserver(observer)
-            throw CaptureError.engineStartFailed(error)
+            _ = try? buffer.finish()
+            throw error
         }
-
-        self.engine = engine
-        self.inputNode = input
-        self.configurationObserver = observer
+        recording = true
         self.device = device
-        self.tap = InputDevice(sampleRate: tapFormat.sampleRate, channels: tapFormat.channelCount)
-        self.engineStartDelay = HostClock.seconds(from: startedAt, to: HostClock.now())
+        startDelay = HostClock.seconds(from: startedAt, to: HostClock.now())
     }
 
     /// Stop recording and return all captured samples (16 kHz mono Float32).
@@ -119,21 +100,15 @@ final class AudioCapture {
         }
     }
 
-    /// Stop recording, release the engine, and return the captured samples.
+    /// Stop recording, stop the input, and return the captured samples.
     /// Throws `CaptureError.routeChanged` instead of returning a partial
     /// capture if the input route changed mid-recording.
     func finish() throws -> [Float] {
-        guard let engine else { return [] }
-        engine.stop()
-        inputNode?.removeTap(onBus: 0)
-        if let configurationObserver {
-            NotificationCenter.default.removeObserver(configurationObserver)
-        }
-        self.configurationObserver = nil
-        self.inputNode = nil
-        self.engine = nil
+        guard recording else { return [] }
+        recording = false
+        input.stop()
 
-        // The tap has stopped; flush what the resampler still holds.
+        // The input has stopped; flush what the resampler still holds.
         converters.drain { buffer.appendTail($0) }
         let stats = buffer.currentStats
         lastStats = stats
@@ -143,13 +118,15 @@ final class AudioCapture {
 
     /// The body of an input callback: note when the buffer's first sample,
     /// and its first non-zero sample, were captured, then convert to 16 kHz
-    /// and append. `firstFrame` and `now` are `HostClock` nanoseconds.
+    /// and append. `firstFrame` and `now` are `HostClock` nanoseconds. A
+    /// buffer outside a recording is counted and dropped.
     static func inputHandler(
         buffer: CaptureBuffer,
         converters: ConverterCache,
         onLevel: ((Float) -> Void)?
     ) -> (_ pcm: AVAudioPCMBuffer, _ firstFrame: UInt64, _ now: UInt64) -> Void {
         return { pcm, firstFrame, now in
+            guard buffer.admit() else { return }
             var firstSound: UInt64?
             if buffer.awaitingSound, pcm.format.sampleRate > 0, let frame = firstNonZeroFrame(pcm) {
                 firstSound = firstFrame &+ UInt64(Double(frame) / pcm.format.sampleRate * 1_000_000_000)
@@ -190,13 +167,17 @@ final class AudioCapture {
     private func logStats(_ stats: CaptureBuffer.Stats) {
         func ms(_ delay: TimeInterval?) -> String { delay.map { String(format: "%.0f ms", $0 * 1000) } ?? "none" }
         var line = String(
-            format: "  input %.0f Hz × %u · tap %.0f Hz × %u · engine start %.0f ms",
-            device.sampleRate, device.channels, tap.sampleRate, tap.channels, engineStartDelay * 1000
+            format: "  input %.0f Hz × %u · delivered %.0f Hz × %u · %@ start %.0f ms",
+            device.sampleRate, device.channels, delivered.sampleRate, delivered.channels,
+            mode.rawValue, startDelay * 1000
         )
         line += " · press→first sample \(ms(stats.firstSampleDelay)) · first sound \(ms(stats.firstSoundDelay))"
         line += " · first buffer \(ms(stats.firstBufferDelay)) · \(stats.buffers) buffers · \(stats.inputFrames) frames"
         if stats.conversionFailures > 0 {
             line += " · \(stats.conversionFailures) conversion failures"
+        }
+        if stats.inputFailures > 0 {
+            line += " · \(stats.inputFailures) input failures"
         }
         Log.info(line)
     }

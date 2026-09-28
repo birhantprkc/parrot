@@ -83,7 +83,9 @@ Sources/ParrotCore/
     FocusSnapshot.swift         what was focused, whether it is editable or secure
     TextInjector.swift          delivery into the focused field (paste or typed Unicode)
   Audio/
-    AudioCapture.swift          capture engine, device selection, format conversion
+    AudioCapture.swift          capture: permission and device checks, format conversion, per-capture stats
+    CaptureInput.swift          CaptureMode and the protocol each way of running the mic implements
+    EngineInput.swift           the AVAudioEngine input, fresh per press
     HostClock.swift             host time in nanoseconds, to compare a press with Core Audio buffer timestamps
     SilenceTrimmer.swift        cuts leading and trailing silence before transcription (pure, tested)
   Transcription/
