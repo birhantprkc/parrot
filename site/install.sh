@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Parrot installer, for people who prefer a terminal to the DMG.
-#   curl -fsSL https://humanitas-labs.github.io/parrot/install.sh | sh
+#   curl -fsSL https://perroquet.xyz/install.sh | sh
 #
 # Downloads the latest Parrot DMG from GitHub Releases, checks it against
 # the published SHA-256, copies Parrot.app to /Applications (or

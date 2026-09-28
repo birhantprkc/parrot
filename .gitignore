@@ -19,3 +19,7 @@
 # app bundle and DMG (scripts/build-app.sh, scripts/make-dmg.sh)
 build/
 dist/
+
+# Vercel CLI link for site/ (perroquet.xyz)
+.vercel
+.env*
