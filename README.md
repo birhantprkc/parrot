@@ -14,7 +14,7 @@ Or from a terminal, which also installs the `parrot` command:
 curl -fsSL https://humanitas-labs.github.io/parrot/install.sh | sh
 ```
 
-Requires macOS 14+ on Apple Silicon. Parrot is signed and notarized, so permissions survive updates. Upgrading from the command-line version: open the new app once and it replaces the old install.
+Requires macOS 14+ on Apple Silicon. Parrot is signed and notarized, so permissions survive updates, and it updates itself: it checks once a day, and **Check for Updates…** in its menu checks now. Upgrading from the command-line version: open the new app once and it replaces the old install.
 
 ## 2. Usage
 
