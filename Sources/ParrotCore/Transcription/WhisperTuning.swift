@@ -29,7 +29,9 @@ package struct WhisperTuning: Equatable, @unchecked Sendable {
     package static let standard = WhisperTuning(
         melCompute: .cpuOnly,
         withoutTimestamps: true,
-        trimSilence: true
+        trimSilence: true,
+        leadPadding: 0.3,
+        trailPadding: 0.3
     )
 
     /// The samples the model gets for a capture: trimmed if `trimSilence`,

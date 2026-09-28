@@ -94,6 +94,14 @@ final class WhisperTuningTests: XCTestCase {
         XCTAssertEqual(options.promptTokens, [1, 2])
         XCTAssertFalse(WhisperTuning.baseline.trimSilence)
         XCTAssertEqual(WhisperTuning.baseline.melCompute, .cpuAndGPU)
+        XCTAssertEqual(WhisperTuning.baseline.leadPadding, 0)
+        XCTAssertEqual(WhisperTuning.baseline.trailPadding, 0)
+    }
+
+    func testStandardPadsAfterTheTrim() {
+        XCTAssertTrue(WhisperTuning.standard.trimSilence)
+        XCTAssertEqual(WhisperTuning.standard.leadPadding, 0.3)
+        XCTAssertEqual(WhisperTuning.standard.trailPadding, 0.3)
     }
 
     func testPadsSilenceAroundTheCaptureAfterTheTrim() {
