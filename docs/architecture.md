@@ -70,6 +70,7 @@ Sources/ParrotCore/
                                 launch at login (SMAppService) and the `parrot` symlink into the bundle
     Setup.swift, Doctor.swift, ModelCommands.swift, Bench.swift
                                 bodies of the other commands
+    CaptureBench.swift          `parrot bench capture`: press-to-first-sample, cold and warm, per capture mode
   Support/
     Paths.swift                 every on-disk location Parrot uses
     Log.swift                   stderr logging; never logs transcript text
@@ -86,6 +87,7 @@ Sources/ParrotCore/
     AudioCapture.swift          capture: permission and device checks, format conversion, per-capture stats
     CaptureInput.swift          CaptureMode and the protocol each way of running the mic implements
     EngineInput.swift           the AVAudioEngine input, fresh per press
+    InputActivity.swift         whether this process, or any, is running the input (checks the mic is off between presses)
     HostClock.swift             host time in nanoseconds, to compare a press with Core Audio buffer timestamps
     SilenceTrimmer.swift        cuts leading and trailing silence before transcription (pure, tested)
   Transcription/

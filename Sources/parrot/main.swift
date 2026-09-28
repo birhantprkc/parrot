@@ -119,9 +119,62 @@ struct Models: ParsableCommand {
     }
 }
 
-/// Transcription latency over local recordings (#49).
+/// `parrot bench <folder>` times transcription; `parrot bench capture` times
+/// the microphone.
 struct Bench: ParsableCommand {
     static let configuration = CommandConfiguration(
+        abstract: "Measure latency: the model over recordings, or microphone capture.",
+        subcommands: [BenchTranscription.self, BenchCapture.self],
+        defaultSubcommand: BenchTranscription.self
+    )
+}
+
+/// Press-to-first-sample of the default input (#52).
+struct BenchCapture: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "capture",
+        abstract: "Time press-to-first-sample on the default input, cold and warm.",
+        discussion: """
+            Opens and closes the default input the way a dictation does and \
+            prints the median and p90, in milliseconds, of the time from the \
+            press to the first captured sample, cold (after --idle seconds \
+            without capture) and warm (--gap seconds after the last). It also \
+            checks between presses that the input is not running. Speak or \
+            not; no audio is kept.
+            """
+    )
+
+    @Option(name: .long, help: "Rounds: one cold and one warm capture each.") var runs: Int = 5
+
+    @Option(name: .long, help: "Seconds without capture before each cold capture.") var idle: Double = 300
+
+    @Option(name: .long, help: "Seconds between a cold capture and the warm one.") var gap: Double = 2
+
+    @Option(name: .long, help: "Seconds to hold each capture after its first buffer.") var hold: Double = 0.5
+
+    @Option(
+        name: .long,
+        help: "Capture mode: \(CaptureMode.allCases.map(\.rawValue).joined(separator: ", ")).",
+        transform: { raw in
+            guard let mode = CaptureMode(rawValue: raw) else {
+                throw ValidationError("expected one of: \(CaptureMode.allCases.map(\.rawValue).joined(separator: ", "))")
+            }
+            return mode
+        }
+    )
+    var mode: CaptureMode = .standard
+
+    func run() throws {
+        try exiting {
+            try CaptureBench.run(CaptureBenchOptions(runs: runs, idle: idle, gap: gap, hold: hold, mode: mode))
+        }
+    }
+}
+
+/// Transcription latency over local recordings (#49).
+struct BenchTranscription: ParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "transcription",
         abstract: "Time the model over a folder of recordings: median and p90 per stage.",
         discussion: """
             Runs the model over every .wav file in the folder and prints each \
