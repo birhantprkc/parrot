@@ -47,6 +47,13 @@ struct Run: ParsableCommand {
     )
     var injectMode: InjectMode = .paste
 
+    @Option(
+        name: .long,
+        help: "How the microphone is run: \(CaptureMode.allCases.map(\.rawValue).joined(separator: ", ")) (default \(CaptureMode.standard.rawValue)).",
+        transform: parseCaptureMode
+    )
+    var capture: CaptureMode = .standard
+
     func run() throws {
         // The app and a foreground run would both paste every dictation.
         guard AppLaunch.claimSingleInstance() else {
@@ -60,7 +67,8 @@ struct Run: ParsableCommand {
                 dumpWav: dumpWav,
                 noOverlay: noOverlay,
                 model: model,
-                injectMode: injectMode
+                injectMode: injectMode,
+                captureMode: capture
             ))
         } catch let failure as StartupFailure {
             // The one exit-code rule. A supervisor that relaunches on nonzero
@@ -155,18 +163,15 @@ struct BenchCapture: ParsableCommand {
     @Option(
         name: .long,
         help: "Capture mode: \(CaptureMode.allCases.map(\.rawValue).joined(separator: ", ")).",
-        transform: { raw in
-            guard let mode = CaptureMode(rawValue: raw) else {
-                throw ValidationError("expected one of: \(CaptureMode.allCases.map(\.rawValue).joined(separator: ", "))")
-            }
-            return mode
-        }
+        transform: parseCaptureMode
     )
     var mode: CaptureMode = .standard
 
+    @Flag(name: .long, help: "Write the last capture to ~/Library/Caches/parrot/last-capture.wav.") var dumpWav: Bool = false
+
     func run() throws {
         try exiting {
-            try CaptureBench.run(CaptureBenchOptions(runs: runs, idle: idle, gap: gap, hold: hold, mode: mode))
+            try CaptureBench.run(CaptureBenchOptions(runs: runs, idle: idle, gap: gap, hold: hold, mode: mode, dumpWav: dumpWav))
         }
     }
 }
@@ -250,6 +255,14 @@ struct Install: ParsableCommand {
             }
         }
     }
+}
+
+/// `--capture` and `bench capture --mode`: a `CaptureMode` by name.
+private func parseCaptureMode(_ raw: String) throws -> CaptureMode {
+    guard let mode = CaptureMode(rawValue: raw) else {
+        throw ValidationError("expected one of: \(CaptureMode.allCases.map(\.rawValue).joined(separator: ", "))")
+    }
+    return mode
 }
 
 /// Maps ParrotCore's `SilentExit` to an exit code. Any other error reaches

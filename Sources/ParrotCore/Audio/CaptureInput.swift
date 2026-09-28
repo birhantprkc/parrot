@@ -6,6 +6,8 @@ import Foundation
 public enum CaptureMode: String, CaseIterable, Sendable {
     /// A fresh `AVAudioEngine` per press, released on release (#39).
     case engine
+    /// A Core Audio AUHAL input unit, built per press and disposed on release.
+    case hal
 
     /// The mode a run uses unless told otherwise.
     public static let standard: CaptureMode = .engine
@@ -14,6 +16,7 @@ public enum CaptureMode: String, CaseIterable, Sendable {
     func makeInput() -> CaptureInput {
         switch self {
         case .engine: return EngineInput()
+        case .hal: return HALInput(keepsPrepared: false)
         }
     }
 }

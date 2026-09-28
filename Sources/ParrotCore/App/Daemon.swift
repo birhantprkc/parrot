@@ -10,6 +10,8 @@ public struct DaemonOptions {
     public var model: String?
     /// How transcripts are inserted. Paste unless `--inject-mode` says otherwise.
     public var injectMode: InjectMode
+    /// How the microphone is run (#52). The standard mode unless `--capture` says otherwise.
+    public var captureMode: CaptureMode
 
     public init(
         skipDoctor: Bool,
@@ -17,7 +19,8 @@ public struct DaemonOptions {
         dumpWav: Bool,
         noOverlay: Bool,
         model: String?,
-        injectMode: InjectMode = .paste
+        injectMode: InjectMode = .paste,
+        captureMode: CaptureMode = .standard
     ) {
         self.skipDoctor = skipDoctor
         self.debugHotkey = debugHotkey
@@ -25,6 +28,7 @@ public struct DaemonOptions {
         self.noOverlay = noOverlay
         self.model = model
         self.injectMode = injectMode
+        self.captureMode = captureMode
     }
 }
 
@@ -57,7 +61,7 @@ public enum Daemon {
         app.setActivationPolicy(.accessory)
 
         let monitor = HotkeyMonitor(debug: options.debugHotkey)
-        let capture = AudioCapture()
+        let capture = AudioCapture(mode: options.captureMode)
         let overlay: RecordingOverlay? = options.noOverlay ? nil : RecordingOverlay()
         if let overlay {
             capture.onLevel = { level in overlay.pushLevel(level) }

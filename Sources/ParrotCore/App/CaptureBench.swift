@@ -13,13 +13,19 @@ public struct CaptureBenchOptions {
     /// Seconds each capture is held after its first buffer arrives.
     public var hold: Double
     public var mode: CaptureMode
+    /// Write the last capture to `Paths.dumpWav`, to listen to it.
+    public var dumpWav: Bool
 
-    public init(runs: Int = 5, idle: Double = 300, gap: Double = 2, hold: Double = 0.5, mode: CaptureMode = .standard) {
+    public init(
+        runs: Int = 5, idle: Double = 300, gap: Double = 2, hold: Double = 0.5,
+        mode: CaptureMode = .standard, dumpWav: Bool = false
+    ) {
         self.runs = runs
         self.idle = idle
         self.gap = gap
         self.hold = hold
         self.mode = mode
+        self.dumpWav = dumpWav
     }
 }
 
@@ -87,6 +93,12 @@ public enum CaptureBench {
         if failed > 0 {
             print("\(failed) captures failed: \(all.compactMap(\.failure).first ?? "")")
         }
+        if options.dumpWav, let last = all.last, !last.audio.isEmpty {
+            try Paths.prepareDirectory(Paths.caches)
+            let path = try Paths.preparePrivateFile(Paths.dumpWav).path
+            try WAVWriter.write(samples: last.audio, sampleRate: Int(AudioCapture.targetSampleRate), to: path)
+            print("wrote the last capture to \(path)")
+        }
     }
 
     /// One capture: press, wait for the first buffer, hold, release.
@@ -105,11 +117,13 @@ public enum CaptureBench {
         }
         result.runningWhileHeld = InputActivity.thisProcessIsRunningInput()
         Thread.sleep(forTimeInterval: hold)
+        let released = HostClock.now()
         do {
-            result.frames = try capture.finish().count
+            result.audio = try capture.finish()
         } catch {
             result.failure = "\(error)"
         }
+        result.stopCall = HostClock.seconds(from: released, to: HostClock.now())
         let stats = capture.lastStats
         result.firstSample = stats?.firstSampleDelay
         result.firstSound = stats?.firstSoundDelay
@@ -124,19 +138,25 @@ public enum CaptureBench {
         var firstSample: Double?
         var firstSound: Double?
         var firstBuffer: Double?
-        var frames = 0
+        /// How long `finish()` blocked the caller.
+        var stopCall: Double = 0
+        /// The capture, 16 kHz mono.
+        var audio: [Float] = []
         var runningWhileHeld: Bool?
         var failure: String?
 
+        var startCallValue: Double? { startCall }
+        var stopCallValue: Double? { stopCall }
+
         var summary: String {
             func ms(_ v: Double?) -> String { v.map { String(format: "%.0f", $0 * 1000) } ?? "-" }
-            return "first sample \(ms(firstSample)) · first sound \(ms(firstSound)) · first buffer \(ms(firstBuffer)) · start() \(ms(startCall)) ms"
+            return "first sample \(ms(firstSample)) · first sound \(ms(firstSound)) · first buffer \(ms(firstBuffer)) · start() \(ms(startCall)) · stop() \(ms(stopCall)) ms"
         }
     }
 
     /// Median and p90 of each measure over a set of captures.
     struct Summary {
-        static let header = "        n   first sample   first sound   first buffer   start()"
+        static let header = "        n   first sample   first sound    first buffer   start()        stop()"
 
         var label: String
         var samples: [Sample]
@@ -148,13 +168,15 @@ public enum CaptureBench {
                 return String(format: "%.0f/%.0f", Percentile.of(values, 50), Percentile.of(values, 90))
                     .padding(toLength: 15, withPad: " ", startingAt: 0)
             }
-            let startValues = samples.map { $0.startCall * 1000 }
-            return label.padding(toLength: 6, withPad: " ", startingAt: 0)
+            var line = label.padding(toLength: 6, withPad: " ", startingAt: 0)
                 + String(format: "%3d   ", samples.count)
                 + column(\.firstSample)
                 + column(\.firstSound)
                 + column(\.firstBuffer)
-                + String(format: "%.0f/%.0f", Percentile.of(startValues, 50), Percentile.of(startValues, 90))
+                + column(\.startCallValue)
+                + column(\.stopCallValue)
+            while line.hasSuffix(" ") { line.removeLast() }
+            return line
         }
     }
 

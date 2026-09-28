@@ -87,6 +87,7 @@ Sources/ParrotCore/
     AudioCapture.swift          capture: permission and device checks, format conversion, per-capture stats
     CaptureInput.swift          CaptureMode and the protocol each way of running the mic implements
     EngineInput.swift           the AVAudioEngine input, fresh per press
+    HALInput.swift              the Core Audio AUHAL input unit, and the device watcher that reports route changes
     InputActivity.swift         whether this process, or any, is running the input (checks the mic is off between presses)
     HostClock.swift             host time in nanoseconds, to compare a press with Core Audio buffer timestamps
     SilenceTrimmer.swift        cuts leading and trailing silence before transcription (pure, tested)
