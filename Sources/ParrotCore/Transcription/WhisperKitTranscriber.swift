@@ -51,7 +51,7 @@ package actor WhisperKitTranscriber: Transcriber {
         guard let pipeline else { throw TranscriberError.notLoaded }
 
         let started = CFAbsoluteTimeGetCurrent()
-        let input = tuning.trimSilence ? SilenceTrimmer.trim(audio) : audio
+        let input = tuning.prepare(audio)
         let trimTime = CFAbsoluteTimeGetCurrent() - started
 
         let options = tuning.decodingOptions(

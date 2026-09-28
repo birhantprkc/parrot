@@ -25,6 +25,12 @@ struct BenchOptions {
     /// Seconds to sit idle before each timed run, to see whether the first
     /// dictation after a pause is slower.
     var pause: Double
+    /// Trim silence or not; nil keeps the tuning's choice.
+    var trim: Bool?
+    /// Seconds of silence before and after the audio, after the trim; nil
+    /// keeps the tuning's choice.
+    var leadPad: Double?
+    var trailPad: Double?
 
     init(
         folder: String,
@@ -35,7 +41,10 @@ struct BenchOptions {
         baseline: Bool = false,
         encoder: String? = nil,
         decoder: String? = nil,
-        pause: Double = 0
+        pause: Double = 0,
+        trim: Bool? = nil,
+        leadPad: Double? = nil,
+        trailPad: Double? = nil
     ) {
         self.folder = folder
         self.runs = runs
@@ -46,6 +55,9 @@ struct BenchOptions {
         self.encoder = encoder
         self.decoder = decoder
         self.pause = pause
+        self.trim = trim
+        self.leadPad = leadPad
+        self.trailPad = trailPad
     }
 }
 
@@ -84,6 +96,9 @@ enum TranscriptionBench {
             }
             tuning.decoderCompute = units
         }
+        if let trim = options.trim { tuning.trimSilence = trim }
+        if let pad = options.leadPad { tuning.leadPadding = pad }
+        if let pad = options.trailPad { tuning.trailPadding = pad }
 
         let files = try recordings(in: options.folder)
         guard !files.isEmpty else {
@@ -114,27 +129,41 @@ enum TranscriptionBench {
 
         var totalErrors = 0
         var totalWords = 0
+        var firstWordHits = 0
+        var firstWordFiles = 0
+        var totals: [Double] = []
         for file in files {
             let audio = try AudioProcessor.loadAudioAsFloatArray(fromPath: file.audio.path)
             var samples: [TranscriberTimings] = []
             var wer: WordErrorRate?
+            var firstWord: Bool?
             for _ in 0..<options.runs {
                 if options.pause > 0 { Thread.sleep(forTimeInterval: options.pause) }
                 let transcript = try blocking { try await transcriber.transcribe(audio, context: context) }
                 samples.append(transcript.timings ?? TranscriberTimings.zero)
                 if wer == nil, let reference = file.reference {
                     wer = WordErrorRate(reference: reference, hypothesis: transcript.text)
+                    firstWord = FirstWord.recalled(reference: reference, hypothesis: transcript.text)
                 }
             }
             if let wer {
                 totalErrors += wer.errors
                 totalWords += wer.referenceWords
             }
+            if let firstWord {
+                firstWordFiles += 1
+                if firstWord { firstWordHits += 1 }
+            }
+            totals += samples.map { $0.total * 1000 }
             print(Row(name: file.audio.lastPathComponent, audioSeconds: Double(audio.count) / 16_000, samples: samples, wer: wer).text)
         }
         if totalWords > 0 {
             print(String(format: "\nWER %.1f%% (%d errors / %d words)", 100 * Double(totalErrors) / Double(totalWords), totalErrors, totalWords))
         }
+        if firstWordFiles > 0 {
+            print(String(format: "first word %d/%d (%.1f%%)", firstWordHits, firstWordFiles, 100 * Double(firstWordHits) / Double(firstWordFiles)))
+        }
+        print(String(format: "total ms over all files: median %.0f, p90 %.0f", Percentile.of(totals, 50), Percentile.of(totals, 90)))
     }
 
     struct Recording {
@@ -194,6 +223,8 @@ enum TranscriptionBench {
         ]
         if tuning.withoutTimestamps { parts.append("no timestamps") }
         if tuning.trimSilence { parts.append("trim") }
+        if tuning.leadPadding > 0 { parts.append(String(format: "lead pad %.2f s", tuning.leadPadding)) }
+        if tuning.trailPadding > 0 { parts.append(String(format: "trail pad %.2f s", tuning.trailPadding)) }
         return parts.joined(separator: " · ")
     }
 
@@ -238,6 +269,21 @@ enum Percentile {
         let sorted = values.sorted()
         let rank = Int((p / 100 * Double(sorted.count)).rounded(.up))
         return sorted[min(max(rank, 1), sorted.count) - 1]
+    }
+}
+
+/// Whether the first word of what was said is the first word transcribed,
+/// compared as `WordErrorRate.words` normalizes them. "ok" and "okay" count
+/// as the same word. Pure, so it is tested.
+enum FirstWord {
+    static func recalled(reference: String, hypothesis: String) -> Bool {
+        guard let said = WordErrorRate.words(reference).first else { return true }
+        guard let heard = WordErrorRate.words(hypothesis).first else { return false }
+        return canonical(said) == canonical(heard)
+    }
+
+    private static func canonical(_ word: String) -> String {
+        word == "ok" ? "okay" : word
     }
 }
 

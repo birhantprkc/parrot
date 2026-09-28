@@ -26,6 +26,24 @@ final class WordErrorRateTests: XCTestCase {
     }
 }
 
+final class FirstWordTests: XCTestCase {
+    func testMatchesTheFirstWordAfterNormalizing() {
+        XCTAssertTrue(FirstWord.recalled(reference: "Send the draft", hypothesis: "send, the draft."))
+        XCTAssertTrue(FirstWord.recalled(reference: "Okay so the plan", hypothesis: "OK, so the plan"))
+        XCTAssertTrue(FirstWord.recalled(reference: "I'll be there", hypothesis: "I’ll be there"))
+    }
+
+    func testMissesADroppedOrChangedFirstWord() {
+        XCTAssertFalse(FirstWord.recalled(reference: "Send the draft", hypothesis: "the draft"))
+        XCTAssertFalse(FirstWord.recalled(reference: "Yes", hypothesis: ""))
+        XCTAssertFalse(FirstWord.recalled(reference: "Hey can you", hypothesis: "Hi can you"))
+    }
+
+    func testAnEmptyReferenceHasNothingToMiss() {
+        XCTAssertTrue(FirstWord.recalled(reference: "", hypothesis: "anything"))
+    }
+}
+
 final class PercentileTests: XCTestCase {
     func testNearestRank() {
         let values = (1...10).map(Double.init).shuffled()

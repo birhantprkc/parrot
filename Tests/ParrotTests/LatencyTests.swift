@@ -95,4 +95,38 @@ final class WhisperTuningTests: XCTestCase {
         XCTAssertFalse(WhisperTuning.baseline.trimSilence)
         XCTAssertEqual(WhisperTuning.baseline.melCompute, .cpuAndGPU)
     }
+
+    func testPadsSilenceAroundTheCaptureAfterTheTrim() {
+        var tuning = WhisperTuning.baseline
+        tuning.leadPadding = 0.25
+        tuning.trailPadding = 0.125
+        let speech = [Float](repeating: 0.5, count: 1_600)
+        let out = tuning.prepare(speech)
+        XCTAssertEqual(out.count, 4_000 + 1_600 + 2_000)
+        XCTAssertTrue(out[..<4_000].allSatisfy { $0 == 0 })
+        XCTAssertEqual(Array(out[4_000..<5_600]), speech)
+        XCTAssertTrue(out[5_600...].allSatisfy { $0 == 0 })
+    }
+
+    func testPadsWhatTheTrimKeeps() {
+        var tuning = WhisperTuning.baseline
+        tuning.trimSilence = true
+        tuning.leadPadding = 0.3
+        let quiet = [Float](repeating: 0, count: 16_000)
+        let loud = (0..<16_000).map { 0.3 * sin(Float($0) * 2 * .pi * 220 / 16_000) }
+        let audio = quiet + loud + quiet
+        let trimmed = SilenceTrimmer.trim(audio)
+        XCTAssertLessThan(trimmed.count, audio.count)
+        XCTAssertEqual(tuning.prepare(audio), [Float](repeating: 0, count: 4_800) + trimmed)
+    }
+
+    func testLeavesAnEmptyCaptureAndZeroPaddingAlone() {
+        var tuning = WhisperTuning.baseline
+        tuning.leadPadding = 0.5
+        XCTAssertEqual(tuning.prepare([]), [])
+        let audio: [Float] = [0.1, -0.2, 0.3]
+        XCTAssertEqual(WhisperTuning.baseline.prepare(audio), audio)
+        tuning.leadPadding = -1
+        XCTAssertEqual(tuning.prepare(audio), audio)
+    }
 }

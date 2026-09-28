@@ -85,6 +85,22 @@ struct BenchTranscription: ParsableCommand {
 
     @Option(name: .long, help: "Seconds to sit idle before each timed run.") var pause: Double = 0
 
+    @Option(name: .long, help: "Trim leading and trailing silence: on or off. Defaults to the tuning's choice.")
+    var trim: String?
+
+    @Option(name: .long, help: "Seconds of silence before the audio, after the trim. Defaults to the tuning's choice.")
+    var leadPad: Double?
+
+    @Option(name: .long, help: "Seconds of silence after the audio, after the trim. Defaults to the tuning's choice.")
+    var trailPad: Double?
+
+    func validate() throws {
+        if let trim, !["on", "off"].contains(trim) { throw ValidationError("--trim: expected on or off") }
+        for (name, value) in [("--lead-pad", leadPad), ("--trail-pad", trailPad)] {
+            if let value, value < 0 || value > 5 { throw ValidationError("\(name): expected 0 to 5 seconds") }
+        }
+    }
+
     func run() throws {
         try exiting {
             try TranscriptionBench.run(BenchOptions(
@@ -96,7 +112,10 @@ struct BenchTranscription: ParsableCommand {
                 baseline: baseline,
                 encoder: encoder,
                 decoder: decoder,
-                pause: pause
+                pause: pause,
+                trim: trim.map { $0 == "on" },
+                leadPad: leadPad,
+                trailPad: trailPad
             ))
         }
     }
