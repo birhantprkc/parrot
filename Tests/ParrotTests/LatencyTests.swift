@@ -70,8 +70,15 @@ final class LatencyLogTests: XCTestCase {
 }
 
 final class WhisperTuningTests: XCTestCase {
+    func testDropsTimestampsOnlyWhenTheAudioFitsOneWindow() {
+        let tuning = WhisperTuning.standard
+        XCTAssertTrue(tuning.decodingOptions(language: "en", promptTokens: nil, audioSeconds: 5).withoutTimestamps)
+        XCTAssertTrue(tuning.decodingOptions(language: "en", promptTokens: nil, audioSeconds: 30).withoutTimestamps)
+        XCTAssertFalse(tuning.decodingOptions(language: "en", promptTokens: nil, audioSeconds: 30.5).withoutTimestamps)
+    }
+
     func testBaselineKeepsWhisperKitDefaults() {
-        let options = WhisperTuning.baseline.decodingOptions(language: "en", promptTokens: [1, 2])
+        let options = WhisperTuning.baseline.decodingOptions(language: "en", promptTokens: [1, 2], audioSeconds: 5)
         XCTAssertFalse(options.withoutTimestamps)
         XCTAssertEqual(options.language, "en")
         XCTAssertEqual(options.promptTokens, [1, 2])

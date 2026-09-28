@@ -191,6 +191,7 @@ public enum Bench {
             "encoder \(label(tuning.encoderCompute))",
             "decoder \(label(tuning.decoderCompute))",
         ]
+        if tuning.withoutTimestamps { parts.append("no timestamps") }
         return parts.joined(separator: " · ")
     }
 

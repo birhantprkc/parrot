@@ -53,7 +53,8 @@ actor WhisperKitTranscriber: Transcriber {
         let started = CFAbsoluteTimeGetCurrent()
         let options = tuning.decodingOptions(
             language: context.language,
-            promptTokens: Self.promptTokens(for: context.prompt, tokenizer: pipeline.tokenizer)
+            promptTokens: Self.promptTokens(for: context.prompt, tokenizer: pipeline.tokenizer),
+            audioSeconds: Double(audio.count) / Double(WhisperKit.sampleRate)
         )
         let results = try await pipeline.transcribe(audioArray: audio, decodeOptions: options)
         let raw = results.map(\.text).joined(separator: " ")
