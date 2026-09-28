@@ -3,7 +3,7 @@ import Foundation
 /// Why a recording could not start or produced nothing usable. Each case has
 /// a one-line `userMessage` for the overlay; `description` adds the details
 /// for the log. Neither ever contains audio or transcript text.
-enum CaptureError: Error, UserFacingError, CustomStringConvertible {
+package enum CaptureError: Error, UserFacingError, CustomStringConvertible {
     /// Microphone access is denied or restricted for this app.
     case microphoneDenied
     /// The system has not asked yet, or the prompt is still open.
@@ -18,7 +18,7 @@ enum CaptureError: Error, UserFacingError, CustomStringConvertible {
     /// removed, or its format changed). The partial capture was discarded.
     case routeChanged
 
-    var userMessage: String {
+    package var userMessage: String {
         switch self {
         case .microphoneDenied:
             return "microphone access denied: System Settings → Privacy & Security → Microphone"
@@ -33,7 +33,7 @@ enum CaptureError: Error, UserFacingError, CustomStringConvertible {
         }
     }
 
-    var description: String {
+    package var description: String {
         switch self {
         case .invalidInputFormat(let sampleRate, let channels):
             return "\(userMessage) (input reports \(sampleRate) Hz, \(channels) ch)"

@@ -14,13 +14,13 @@ protocol Transcriber: Sendable {
 
 /// What the transcriber is told about the dictation beyond the audio.
 /// Features fill these fields; engines use what they support.
-struct TranscriptionContext: Equatable, Sendable {
+package struct TranscriptionContext: Equatable, Sendable {
     /// Spoken language as an ISO 639-1 code, or nil to let the engine decide.
     var language: String?
     /// Natural text in `language` that biases the model toward expected
     /// words, such as the dictionary's example sentence, or nil for none.
     /// Never a bare list of terms: Whisper ignores a list (#23).
-    var prompt: String?
+    package var prompt: String?
     /// Canonical spellings the user expects, for engines that take a word
     /// list. Empty for none. Whisper ignores it and uses `prompt`.
     var vocabulary: [String]

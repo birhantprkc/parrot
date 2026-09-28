@@ -9,8 +9,8 @@ import Foundation
 /// the `CaptureMode`'s `CaptureInput`; the checks before it (permission, a
 /// usable device) and the conversion and bookkeeping after it are here and
 /// shared by every mode.
-final class AudioCapture {
-    static let targetSampleRate: Double = 16_000
+package final class AudioCapture {
+    package static let targetSampleRate: Double = 16_000
 
     static let targetFormat = AVAudioFormat(
         commonFormat: .pcmFormatFloat32,
@@ -27,14 +27,14 @@ final class AudioCapture {
 
     /// Counts and timings of the last finished capture, including press to
     /// first sample. Nil until one finishes.
-    private(set) var lastStats: CaptureBuffer.Stats?
+    package private(set) var lastStats: CaptureBuffer.Stats?
 
     /// Buffers any input delivered while no recording was open. Stays 0
     /// unless an input ran between presses.
-    var buffersWhileStopped: Int { buffer.buffersWhileClosed }
+    package var buffersWhileStopped: Int { buffer.buffersWhileClosed }
 
     /// The recording so far, for callers that wait on the first sample.
-    var currentStats: CaptureBuffer.Stats { buffer.currentStats }
+    package var currentStats: CaptureBuffer.Stats { buffer.currentStats }
 
     private let input: CaptureInput
     private var recording = false
@@ -44,7 +44,7 @@ final class AudioCapture {
     private let converters = ConverterCache(targetFormat: AudioCapture.targetFormat)
     private let buffer = CaptureBuffer()
 
-    init(mode: CaptureMode = .standard) {
+    package init(mode: CaptureMode = .standard) {
         self.mode = mode
         self.input = mode.makeInput()
         input.prepareIdle()
@@ -52,7 +52,7 @@ final class AudioCapture {
 
     /// Begin recording. Idempotent — calling while already recording is a no-op.
     /// Throws `CaptureError`; on a throw nothing is left running.
-    func start() throws {
+    package func start() throws {
         guard !recording else { return }
         // The press. Press-to-first-sample is measured from here.
         let startedAt = HostClock.now()
@@ -104,7 +104,7 @@ final class AudioCapture {
     /// Stop recording, stop the input, and return the captured samples.
     /// Throws `CaptureError.routeChanged` instead of returning a partial
     /// capture if the input route changed mid-recording.
-    func finish() throws -> [Float] {
+    package func finish() throws -> [Float] {
         guard recording else { return [] }
         recording = false
         input.stop()
@@ -186,9 +186,9 @@ final class AudioCapture {
 
 // MARK: - WAV writer (for debugging M3 captures)
 
-enum WAVWriter {
+package enum WAVWriter {
     /// Write Float32 mono samples as 16-bit PCM WAV to `path`.
-    static func write(samples: [Float], sampleRate: Int, to path: String) throws {
+    package static func write(samples: [Float], sampleRate: Int, to path: String) throws {
         let bytesPerSample = 2
         let dataSize = samples.count * bytesPerSample
 

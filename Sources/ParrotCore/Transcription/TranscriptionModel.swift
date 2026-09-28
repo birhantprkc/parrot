@@ -5,8 +5,8 @@ enum Engine: String, Codable {
     case parakeet
 }
 
-struct TranscriptionModel: Codable {
-    let id: String
+package struct TranscriptionModel: Codable {
+    package let id: String
     let displayName: String
     let engine: Engine
     /// Engine-specific identifier (e.g. "openai_whisper-base.en" for WhisperKit).

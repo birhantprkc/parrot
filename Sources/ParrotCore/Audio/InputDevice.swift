@@ -8,15 +8,15 @@ import Foundation
 /// `AVAudioEngine` raises an Objective-C exception on `installTap` or
 /// `start()`, which Swift cannot catch. Checking here turns that into a
 /// `CaptureError`.
-struct InputDevice: Equatable {
-    var sampleRate: Double
-    var channels: UInt32
+package struct InputDevice: Equatable {
+    package var sampleRate: Double
+    package var channels: UInt32
     /// The Core Audio device, or `kAudioObjectUnknown` when not read from one.
-    var id: AudioDeviceID = kAudioObjectUnknown
+    package var id: AudioDeviceID = kAudioObjectUnknown
 
     /// The current default input. Throws `CaptureError.noInputDevice` if there
     /// is none, or `.invalidInputFormat` if it cannot be recorded.
-    static func current() throws -> InputDevice {
+    package static func current() throws -> InputDevice {
         guard let id = defaultInputID() else { throw CaptureError.noInputDevice }
         let device = InputDevice(sampleRate: nominalSampleRate(id), channels: inputChannels(id), id: id)
         try validate(sampleRate: device.sampleRate, channels: device.channels)
@@ -24,7 +24,7 @@ struct InputDevice: Equatable {
     }
 
     /// The device's name as the Sound settings show it, or nil.
-    static func name(of id: AudioDeviceID) -> String? {
+    package static func name(of id: AudioDeviceID) -> String? {
         var name: Unmanaged<CFString>?
         var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
         var address = AudioObjectPropertyAddress(

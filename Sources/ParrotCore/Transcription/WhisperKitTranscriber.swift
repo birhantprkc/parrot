@@ -2,13 +2,13 @@ import CoreML
 import Foundation
 import WhisperKit
 
-actor WhisperKitTranscriber: Transcriber {
+package actor WhisperKitTranscriber: Transcriber {
     let modelID: String
     private let model: TranscriptionModel
     let tuning: WhisperTuning
     private var pipeline: WhisperKit?
 
-    init(model: TranscriptionModel, tuning: WhisperTuning = .standard) {
+    package init(model: TranscriptionModel, tuning: WhisperTuning = .standard) {
         self.modelID = model.id
         self.model = model
         self.tuning = tuning
@@ -17,7 +17,7 @@ actor WhisperKitTranscriber: Transcriber {
     /// Loads the model into memory; downloads first if not already on disk.
     /// Call once at startup so the first hotkey press isn't blocked on model
     /// download/load.
-    func warmUp() async throws {
+    package func warmUp() async throws {
         if pipeline != nil { return }
         guard let whisperKitID = model.whisperKitID else {
             throw TranscriberError.missingEngineID
@@ -46,7 +46,7 @@ actor WhisperKitTranscriber: Transcriber {
     /// Uses `context.language` and `context.prompt`. `context.vocabulary` is
     /// ignored: Whisper takes no word list, and a list given as a prompt
     /// scores no better than nothing (#23).
-    func transcribe(_ audio: [Float], context: TranscriptionContext) async throws -> Transcript {
+    package func transcribe(_ audio: [Float], context: TranscriptionContext) async throws -> Transcript {
         if pipeline == nil { try await warmUp() }
         guard let pipeline else { throw TranscriberError.notLoaded }
 
@@ -134,7 +134,7 @@ actor WhisperKitTranscriber: Transcriber {
 
 extension WhisperKitTranscriber {
     /// True if `model`'s weights are already under `Paths.appSupport`.
-    static func isCached(_ model: TranscriptionModel) -> Bool {
+    package static func isCached(_ model: TranscriptionModel) -> Bool {
         guard let variant = model.whisperKitID else { return false }
         let dir = Paths.appSupport.appendingPathComponent(folders(for: variant)[0])
         return FileManager.default.fileExists(atPath: dir.path)

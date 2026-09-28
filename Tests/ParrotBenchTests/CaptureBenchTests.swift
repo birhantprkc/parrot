@@ -1,5 +1,5 @@
 import XCTest
-@testable import ParrotCore
+@testable import parrot_bench
 
 final class CaptureBenchTests: XCTestCase {
     func testSummaryIsMedianAndP90InMilliseconds() {

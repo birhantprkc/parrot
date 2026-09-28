@@ -1,22 +1,23 @@
 import CoreAudio
 import Foundation
+import ParrotCore
 
-/// Flags for `parrot bench capture`.
-public struct CaptureBenchOptions {
+/// Flags for `parrot-bench capture`.
+struct CaptureBenchOptions {
     /// Rounds. Each is one cold capture after `idle` seconds and one warm
     /// capture `gap` seconds later.
-    public var runs: Int
+    var runs: Int
     /// Seconds without capture before each cold press.
-    public var idle: Double
+    var idle: Double
     /// Seconds between a cold capture's release and the warm press.
-    public var gap: Double
+    var gap: Double
     /// Seconds each capture is held after its first buffer arrives.
-    public var hold: Double
-    public var mode: CaptureMode
+    var hold: Double
+    var mode: CaptureMode
     /// Write the last capture to `Paths.dumpWav`, to listen to it.
-    public var dumpWav: Bool
+    var dumpWav: Bool
 
-    public init(
+    init(
         runs: Int = 5, idle: Double = 300, gap: Double = 2, hold: Double = 0.5,
         mode: CaptureMode = .standard, dumpWav: Bool = false
     ) {
@@ -29,15 +30,15 @@ public struct CaptureBenchOptions {
     }
 }
 
-/// `parrot bench capture`: opens and closes the default input the way a
+/// `parrot-bench capture`: opens and closes the default input the way a
 /// dictation does and reports press-to-first-sample, cold (after an idle
 /// gap) and warm (seconds after the last capture), for one capture mode
 /// (#52). It also checks, between presses, that neither this process nor any
 /// other runs the device, which is the promise every mode keeps.
 ///
 /// Prints timings and counts, never audio.
-public enum CaptureBench {
-    public static func run(_ options: CaptureBenchOptions) throws {
+enum CaptureBench {
+    static func run(_ options: CaptureBenchOptions) throws {
         guard options.runs > 0, options.idle >= 0, options.gap >= 0, options.hold >= 0 else {
             print("--runs must be at least 1, and --idle, --gap and --hold not negative")
             throw SilentExit(64)

@@ -68,9 +68,8 @@ Sources/ParrotCore/
     AppLaunch.swift             the app role: bundle detection, single instance, migration off the old LaunchAgent
     LoginItem.swift, CommandLineLink.swift
                                 launch at login (SMAppService) and the `parrot` symlink into the bundle
-    Setup.swift, Doctor.swift, ModelCommands.swift, Bench.swift
+    Setup.swift, Doctor.swift, ModelCommands.swift
                                 bodies of the other commands
-    CaptureBench.swift          `parrot bench capture`: press-to-first-sample, cold and warm, per capture mode
   Support/
     Paths.swift                 every on-disk location Parrot uses
     Log.swift                   stderr logging; never logs transcript text
@@ -88,14 +87,13 @@ Sources/ParrotCore/
     CaptureInput.swift          CaptureMode and the protocol each way of running the mic implements
     EngineInput.swift           the AVAudioEngine input, fresh per press (`--capture engine`, the default before #52)
     HALInput.swift              the Core Audio AUHAL input unit (default), per press or prepared between presses, and the device watcher
-    InputActivity.swift         whether this process, or any, is running the input (checks the mic is off between presses)
     HostClock.swift             host time in nanoseconds, to compare a press with Core Audio buffer timestamps
     SilenceTrimmer.swift        cuts leading and trailing silence before transcription (pure, tested)
   Transcription/
     Transcriber.swift           protocol and TranscriptionContext
     TranscriberTimings.swift    where a transcription spent its time, per stage
     WhisperKitTranscriber.swift
-    WhisperTuning.swift         compute units and decoding options, each measured with `parrot bench`
+    WhisperTuning.swift         compute units and decoding options, each measured with `parrot-bench transcription`
     ModelRegistry.swift, TranscriptionModel.swift, ModelStore.swift
   Pipeline/
     Transcript.swift            the value that flows through processing
@@ -114,10 +112,19 @@ Sources/ParrotCore/
     Sections/                   one view per settings section
 
 Sources/parrot/
-  main.swift                    ArgumentParser commands: run, setup, doctor, models, install, bench
+  main.swift                    ArgumentParser commands: run, setup, doctor, models, install
+
+Sources/parrot-bench/           developer benchmarks, never shipped in Parrot.app (`swift run -c release parrot-bench …`)
+  main.swift                    ArgumentParser commands: transcription, capture
+  TranscriptionBench.swift      the model over a folder of recordings: median and p90 per stage, word error rate
+  CaptureBench.swift            press-to-first-sample, cold and warm, per capture mode
+  InputActivity.swift           whether this process, or any, is running the input (checks the mic is off between presses)
 
 Tests/ParrotTests/
+Tests/ParrotBenchTests/
 ```
+
+ParrotCore types the benchmarks need are marked `package`, visible to the package's own targets but not public API; nothing is made `public` for a benchmark.
 
 Files that do not exist yet are created by the issue that needs them. The layout says where they go.
 

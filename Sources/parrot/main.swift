@@ -9,7 +9,7 @@ struct Parrot: ParsableCommand {
         commandName: "parrot",
         abstract: "Minimal macOS dictation daemon. Hold Fn, speak, release.",
         version: AppBundle.version,
-        subcommands: [Run.self, Setup.self, Doctor.self, Models.self, Install.self, Bench.self],
+        subcommands: [Run.self, Setup.self, Doctor.self, Models.self, Install.self],
         defaultSubcommand: Run.self
     )
 }
@@ -127,103 +127,6 @@ struct Models: ParsableCommand {
     }
 }
 
-/// `parrot bench <folder>` times transcription; `parrot bench capture` times
-/// the microphone.
-struct Bench: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        abstract: "Measure latency: the model over recordings, or microphone capture.",
-        subcommands: [BenchTranscription.self, BenchCapture.self],
-        defaultSubcommand: BenchTranscription.self
-    )
-}
-
-/// Press-to-first-sample of the default input (#52).
-struct BenchCapture: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "capture",
-        abstract: "Time press-to-first-sample on the default input, cold and warm.",
-        discussion: """
-            Opens and closes the default input the way a dictation does and \
-            prints the median and p90, in milliseconds, of the time from the \
-            press to the first captured sample, cold (after --idle seconds \
-            without capture) and warm (--gap seconds after the last). It also \
-            checks between presses that the input is not running. Speak or \
-            not; no audio is kept.
-            """
-    )
-
-    @Option(name: .long, help: "Rounds: one cold and one warm capture each.") var runs: Int = 5
-
-    @Option(name: .long, help: "Seconds without capture before each cold capture.") var idle: Double = 300
-
-    @Option(name: .long, help: "Seconds between a cold capture and the warm one.") var gap: Double = 2
-
-    @Option(name: .long, help: "Seconds to hold each capture after its first buffer.") var hold: Double = 0.5
-
-    @Option(
-        name: .long,
-        help: "Capture mode: \(CaptureMode.allCases.map(\.rawValue).joined(separator: ", ")).",
-        transform: parseCaptureMode
-    )
-    var mode: CaptureMode = .standard
-
-    @Flag(name: .long, help: "Write the last capture to ~/Library/Caches/parrot/last-capture.wav.") var dumpWav: Bool = false
-
-    func run() throws {
-        try exiting {
-            try CaptureBench.run(CaptureBenchOptions(runs: runs, idle: idle, gap: gap, hold: hold, mode: mode, dumpWav: dumpWav))
-        }
-    }
-}
-
-/// Transcription latency over local recordings (#49).
-struct BenchTranscription: ParsableCommand {
-    static let configuration = CommandConfiguration(
-        commandName: "transcription",
-        abstract: "Time the model over a folder of recordings: median and p90 per stage.",
-        discussion: """
-            Runs the model over every .wav file in the folder and prints each \
-            transcription stage's median and p90 in milliseconds. A .txt file \
-            beside a recording, holding what was said, adds its word error rate. \
-            Prints timings and counts, never transcript text.
-            """
-    )
-
-    @Argument(help: "Folder of .wav recordings.") var folder: String
-
-    @Option(name: .long, help: "Timed runs per file.") var runs: Int = 10
-
-    @Option(name: .long, help: "Model id to use. Defaults to the recommended model.") var model: String?
-
-    @Option(name: .long, help: "Prompt text to use instead of the dictionary's example sentence.") var prompt: String?
-
-    @Flag(name: .long, help: "Run without a prompt.") var noPrompt: Bool = false
-
-    @Flag(name: .long, help: "Use WhisperKit's default settings, as Parrot ran before #49, to compare.") var baseline: Bool = false
-
-    @Option(name: .long, help: "Compute units for the audio encoder: ane, gpu, cpu or all.") var encoder: String?
-
-    @Option(name: .long, help: "Compute units for the text decoder: ane, gpu, cpu or all.") var decoder: String?
-
-    @Option(name: .long, help: "Seconds to sit idle before each timed run.") var pause: Double = 0
-
-    func run() throws {
-        try exiting {
-            try ParrotCore.Bench.run(BenchOptions(
-                folder: folder,
-                runs: runs,
-                model: model,
-                prompt: prompt,
-                noPrompt: noPrompt,
-                baseline: baseline,
-                encoder: encoder,
-                decoder: decoder,
-                pause: pause
-            ))
-        }
-    }
-}
-
 /// Launch at login and the `parrot` command on PATH.
 struct Install: ParsableCommand {
     static let configuration = CommandConfiguration(
@@ -257,7 +160,7 @@ struct Install: ParsableCommand {
     }
 }
 
-/// `--capture` and `bench capture --mode`: a `CaptureMode` by name.
+/// `--capture`: a `CaptureMode` by name.
 private func parseCaptureMode(_ raw: String) throws -> CaptureMode {
     guard let mode = CaptureMode(rawValue: raw) else {
         throw ValidationError("expected one of: \(CaptureMode.allCases.map(\.rawValue).joined(separator: ", "))")

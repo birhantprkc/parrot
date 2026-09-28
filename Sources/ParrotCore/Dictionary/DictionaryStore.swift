@@ -12,7 +12,7 @@ import Foundation
 /// target to be a regular file owned by the current user. It never changes the
 /// directory's permissions (`Paths.prepareDirectory` refuses symlinks, which is
 /// right for logs and wrong here).
-final class DictionaryStore: @unchecked Sendable {
+package final class DictionaryStore: @unchecked Sendable {
     /// A dictionary with its compiled replacement pass.
     struct Loaded {
         let dictionary: UserDictionary
@@ -35,7 +35,7 @@ final class DictionaryStore: @unchecked Sendable {
     /// read nor logged again.
     private var seen: Stamp?
 
-    init(file: URL = Paths.dictionaryFile, log: @escaping (String) -> Void = { Log.warning($0) }) {
+    package init(file: URL = Paths.dictionaryFile, log: @escaping (String) -> Void = { Log.warning($0) }) {
         self.file = file
         self.log = log
     }

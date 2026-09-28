@@ -31,10 +31,24 @@ let package = Package(
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ]
         ),
+        // Developer benchmarks (#49, #52), not shipped in Parrot.app:
+        // swift run -c release parrot-bench transcription|capture ...
+        .executableTarget(
+            name: "parrot-bench",
+            dependencies: [
+                "ParrotCore",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ]
+        ),
         // Unit tests against ParrotCore.
         .testTarget(
             name: "ParrotTests",
             dependencies: ["ParrotCore"]
+        ),
+        // Unit tests for the benchmarks' pure parts.
+        .testTarget(
+            name: "ParrotBenchTests",
+            dependencies: ["parrot-bench"]
         ),
     ]
 )

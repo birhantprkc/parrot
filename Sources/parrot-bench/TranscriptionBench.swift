@@ -1,31 +1,32 @@
 import CoreML
 import Foundation
+import ParrotCore
 import WhisperKit
 
-/// Flags for `parrot bench`.
-public struct BenchOptions {
+/// Flags for `parrot-bench transcription`.
+struct BenchOptions {
     /// Folder of recordings: `.wav` files, each optionally with a `.txt` of
     /// what was said beside it for the word error rate.
-    public var folder: String
+    var folder: String
     /// Timed runs per file.
-    public var runs: Int
+    var runs: Int
     /// Model id; the recommended model when nil.
-    public var model: String?
+    var model: String?
     /// Prompt text instead of the dictionary's example sentence.
-    public var prompt: String?
+    var prompt: String?
     /// Run without any prompt, even if the dictionary has an example sentence.
-    public var noPrompt: Bool
+    var noPrompt: Bool
     /// Run with WhisperKit's defaults, as Parrot ran before #49, to compare.
-    public var baseline: Bool
+    var baseline: Bool
     /// Compute units for the audio encoder and text decoder: ane, gpu, cpu or
     /// all. Nil keeps the tuning's choice.
-    public var encoder: String?
-    public var decoder: String?
+    var encoder: String?
+    var decoder: String?
     /// Seconds to sit idle before each timed run, to see whether the first
     /// dictation after a pause is slower.
-    public var pause: Double
+    var pause: Double
 
-    public init(
+    init(
         folder: String,
         runs: Int = 10,
         model: String? = nil,
@@ -48,14 +49,14 @@ public struct BenchOptions {
     }
 }
 
-/// `parrot bench <folder>`: runs the model over local recordings and prints
+/// `parrot-bench transcription <folder>`: runs the model over local recordings and prints
 /// the median and p90 of each transcription stage, per file. Capture stop and
 /// delivery need the microphone and a focused app, so they are only in the
 /// daemon's per-dictation log line.
 ///
 /// Prints timings, counts and word error rates, never transcript text.
-public enum Bench {
-    public static func run(_ options: BenchOptions) throws {
+enum TranscriptionBench {
+    static func run(_ options: BenchOptions) throws {
         guard options.runs > 0 else {
             print("--runs must be at least 1")
             throw SilentExit(64)
@@ -120,7 +121,7 @@ public enum Bench {
             for _ in 0..<options.runs {
                 if options.pause > 0 { Thread.sleep(forTimeInterval: options.pause) }
                 let transcript = try blocking { try await transcriber.transcribe(audio, context: context) }
-                samples.append(transcript.timings ?? TranscriberTimings())
+                samples.append(transcript.timings ?? TranscriberTimings.zero)
                 if wer == nil, let reference = file.reference {
                     wer = WordErrorRate(reference: reference, hypothesis: transcript.text)
                 }

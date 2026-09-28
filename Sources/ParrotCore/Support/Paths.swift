@@ -3,7 +3,7 @@ import Foundation
 /// Where parrot keeps files on disk. User-authored config lives in
 /// ~/.config/parrot; everything else lives under ~/Library. Never /tmp or
 /// ~/Documents. Directories are owner-only (0700).
-enum Paths {
+package enum Paths {
     /// `$XDG_CONFIG_HOME/parrot`, default `~/.config/parrot` — the files a user
     /// edits and may keep in dotfiles: settings and the dictionary.
     static var config: URL {
@@ -23,7 +23,7 @@ enum Paths {
     static var logs: URL { library("Logs/parrot") }
 
     /// `~/Library/Caches/parrot` — debug output such as `--dump-wav`.
-    static var caches: URL { library("Caches/parrot") }
+    package static var caches: URL { library("Caches/parrot") }
 
     /// `settings.json` in `config`. Declared for the settings store; not read or written yet.
     static var settingsFile: URL { config.appendingPathComponent("settings.json") }
@@ -38,7 +38,7 @@ enum Paths {
     static var daemonErrLog: URL { logs.appendingPathComponent("parrot.err.log") }
 
     /// Where `--dump-wav` writes the most recent capture.
-    static var dumpWav: URL { caches.appendingPathComponent("last-capture.wav") }
+    package static var dumpWav: URL { caches.appendingPathComponent("last-capture.wav") }
 
     /// `~/Library/LaunchAgents/<label>.plist`.
     static func launchAgentPlist(label: String) -> URL {
@@ -79,7 +79,7 @@ enum Paths {
     /// Creates `dir` if needed and restricts it to the owner. Refuses a path
     /// that exists but isn't a real directory (e.g. a symlink).
     @discardableResult
-    static func prepareDirectory(_ dir: URL) throws -> URL {
+    package static func prepareDirectory(_ dir: URL) throws -> URL {
         let fm = FileManager.default
         if let type = fileType(dir.path) {
             guard type == .typeDirectory else { throw PathError.notADirectory(dir.path) }
@@ -93,7 +93,7 @@ enum Paths {
     /// Creates `file` empty at 0600 if missing, or tightens an existing one.
     /// Refuses a symlink or anything else that isn't a regular file.
     @discardableResult
-    static func preparePrivateFile(_ file: URL) throws -> URL {
+    package static func preparePrivateFile(_ file: URL) throws -> URL {
         let fm = FileManager.default
         if let type = fileType(file.path) {
             guard type == .typeRegular else { throw PathError.notARegularFile(file.path) }

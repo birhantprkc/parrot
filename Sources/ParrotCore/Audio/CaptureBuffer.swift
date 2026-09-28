@@ -3,9 +3,9 @@ import Foundation
 /// What one recording has captured so far. The audio thread appends to it;
 /// `AudioCapture.stop()` reads it once. It holds no engine, so the rules
 /// about what a stop returns are testable without hardware.
-final class CaptureBuffer: @unchecked Sendable {
+package final class CaptureBuffer: @unchecked Sendable {
     /// Counts and timings for one recording. Never audio.
-    struct Stats: Equatable {
+    package struct Stats: Equatable {
         /// Tap callbacks that delivered converted audio.
         var buffers = 0
         /// Frames received at the input's own sample rate.
@@ -13,14 +13,14 @@ final class CaptureBuffer: @unchecked Sendable {
         /// Buffers the converter failed on.
         var conversionFailures = 0
         /// Seconds from `start()` to the first buffer, or nil if none arrived.
-        var firstBufferDelay: TimeInterval?
+        package var firstBufferDelay: TimeInterval?
         /// Seconds from `start()` (the press) to the moment the first sample
         /// of the recording was captured, by the buffer's host timestamp:
         /// anything said before it is lost. Nil if no buffer arrived.
-        var firstSampleDelay: TimeInterval?
+        package var firstSampleDelay: TimeInterval?
         /// The same to the first sample that is not exactly zero. Some inputs
         /// deliver digital silence while they settle; that is lost too.
-        var firstSoundDelay: TimeInterval?
+        package var firstSoundDelay: TimeInterval?
         /// Buffers the input failed to deliver (a render error).
         var inputFailures = 0
     }
