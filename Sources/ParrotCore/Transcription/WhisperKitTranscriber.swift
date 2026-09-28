@@ -42,12 +42,46 @@ actor WhisperKitTranscriber: Transcriber {
         if pipeline == nil { try await warmUp() }
         guard let pipeline else { throw TranscriberError.notLoaded }
 
+        let started = CFAbsoluteTimeGetCurrent()
         var options = DecodingOptions()
         options.language = context.language
         options.promptTokens = Self.promptTokens(for: context.prompt, tokenizer: pipeline.tokenizer)
         let results = try await pipeline.transcribe(audioArray: audio, decodeOptions: options)
         let raw = results.map(\.text).joined(separator: " ")
-        return Transcript(text: Self.sanitize(raw))
+        let text = Self.sanitize(raw)
+        let timings = Self.timings(
+            from: results.map(\.timings),
+            audioSeconds: Double(audio.count) / Double(WhisperKit.sampleRate),
+            preprocessing: 0,
+            total: CFAbsoluteTimeGetCurrent() - started
+        )
+        return Transcript(text: text, timings: timings)
+    }
+
+    /// WhisperKit's per-stage timings folded into Parrot's stages. The decoder
+    /// is what the pipeline spent outside preprocessing, the encoder and
+    /// windowing; post-processing is the rest of the call. `ownPreprocessing` is
+    /// time Parrot spent on the audio before handing it to WhisperKit.
+    static func timings(
+        from results: [TranscriptionTimings],
+        audioSeconds: TimeInterval,
+        preprocessing ownPreprocessing: TimeInterval,
+        total: TimeInterval
+    ) -> TranscriberTimings {
+        var out = TranscriberTimings(audioSeconds: audioSeconds, preprocessing: ownPreprocessing, total: total)
+        for t in results {
+            let preprocessing = t.audioProcessing + t.logmels
+            out.preprocessing += preprocessing
+            out.encoder += t.encoding
+            out.decoder += max(0, t.fullPipeline - preprocessing - t.encoding - t.decodingWindowing)
+            out.windows += Int(t.totalEncodingRuns)
+            out.tokens += Int(t.totalDecodingLoops)
+            // WhisperKit records the index of the last failed attempt, so one
+            // fallback reads 0; any fallback time means at least one happened.
+            if t.decodingFallback > 0 { out.fallbacks += Int(t.totalDecodingFallbacks) + 1 }
+        }
+        out.postprocessing = max(0, total - out.preprocessing - out.encoder - out.decoder)
+        return out
     }
 
     /// `prompt` as Whisper prompt tokens, or nil for none. Whisper reads them as

@@ -61,6 +61,7 @@ Sources/ParrotCore/
   App/
     DictationController.swift   the dictation loop: gesture → capture → transcribe → process → deliver
     DictationObserver.swift     observer protocol and DictationResult (counts and timings, never text)
+    LatencyLog.swift            one log line per dictation: release-to-text and each stage, as a DictationObserver
     Startup.swift               startup checks and StartupFailure (permanent vs transient)
     Daemon.swift                the `run` command: startup, wiring, run loop
     Updater.swift               Sparkle auto-update, started only in the app role
@@ -85,6 +86,7 @@ Sources/ParrotCore/
     AudioCapture.swift          capture engine, device selection, format conversion
   Transcription/
     Transcriber.swift           protocol and TranscriptionContext
+    TranscriberTimings.swift    where a transcription spent its time, per stage
     WhisperKitTranscriber.swift
     ModelRegistry.swift, TranscriptionModel.swift, ModelStore.swift
   Pipeline/
@@ -134,7 +136,7 @@ HotkeyMonitor ──flags──▶ Gesture ──start/stop──▶ DictationCo
                                         clipboard if focus moved; discard in a password field
                                                      │
                                                      ▼
-                              DictationObservers: overlay, menu bar, stats
+                              DictationObservers: overlay, menu bar, stats, latency log
 ```
 
 `DictationController` owns the state machine (`idle`, `recording`, `transcribing`) and nothing else. It is `@MainActor`. Transcription runs off the main actor; the controller awaits it.

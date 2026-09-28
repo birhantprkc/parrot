@@ -5,4 +5,13 @@
 /// delivery; observers get counts and timings (`DictationResult`) instead.
 struct Transcript: Equatable, Sendable {
     var text: String
+    /// Where the transcriber spent its time, when the engine reports it.
+    /// Processors need not carry it on: the controller reads it from the
+    /// transcriber's output.
+    var timings: TranscriberTimings?
+
+    init(text: String, timings: TranscriberTimings? = nil) {
+        self.text = text
+        self.timings = timings
+    }
 }

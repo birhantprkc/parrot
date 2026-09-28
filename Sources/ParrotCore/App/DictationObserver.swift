@@ -8,6 +8,16 @@ struct DictationResult: Equatable, Sendable {
     var transcriptionTime: TimeInterval
     /// Characters delivered, after every `TranscriptProcessor`.
     var charCount: Int
+    /// Seconds to stop the capture engine and collect its samples.
+    var captureStop: TimeInterval = 0
+    /// The transcriber's own breakdown, when the engine reports one.
+    var transcriber: TranscriberTimings?
+    /// Seconds in the `TranscriptProcessor`s.
+    var processing: TimeInterval = 0
+    /// Seconds to deliver the text to the cursor.
+    var delivery: TimeInterval = 0
+    /// Seconds from the hotkey release to the text being delivered.
+    var releaseToText: TimeInterval = 0
 }
 
 enum DictationError: Error {

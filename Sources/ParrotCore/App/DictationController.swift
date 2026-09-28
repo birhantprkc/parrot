@@ -82,6 +82,7 @@ final class DictationController {
     }
 
     func release() {
+        let released = CFAbsoluteTimeGetCurrent()
         let samples: [Float]
         do {
             samples = try capture.finish()
@@ -93,6 +94,7 @@ final class DictationController {
             observers.forEach { $0.dictationFailed(error) }
             return
         }
+        let captureStop = CFAbsoluteTimeGetCurrent() - released
         let focus = focusAtStart
         focusAtStart = nil
         state = .transcribing
@@ -114,15 +116,18 @@ final class DictationController {
         let transcriber = self.transcriber
         let context = self.context()
         Task {
-            let started = Date()
+            let started = CFAbsoluteTimeGetCurrent()
             do {
                 // The transcriber is an actor; this await runs off the main actor.
                 let raw = try await transcriber.transcribe(samples, context: context)
-                let elapsed = Date().timeIntervalSince(started)
+                let transcribed = CFAbsoluteTimeGetCurrent()
+                let elapsed = transcribed - started
                 // Never log the transcript itself: the agent's log is a file on disk.
                 Log.info(String(format: "→ %.2fs · %d chars", elapsed, raw.text.count))
                 let transcript = processors.reduce(raw) { $1.process($0) }
+                let processed = CFAbsoluteTimeGetCurrent()
                 let delivered = Result { try delivery.deliver(transcript.text, focusAtStart: focus) }
+                let done = CFAbsoluteTimeGetCurrent()
                 inFlight -= 1
                 settle()
                 if case .failure(let error) = delivered {
@@ -132,7 +137,12 @@ final class DictationController {
                 let result = DictationResult(
                     captureDuration: seconds,
                     transcriptionTime: elapsed,
-                    charCount: transcript.text.count
+                    charCount: transcript.text.count,
+                    captureStop: captureStop,
+                    transcriber: raw.timings,
+                    processing: processed - transcribed,
+                    delivery: done - processed,
+                    releaseToText: done - released
                 )
                 observers.forEach { $0.dictationFinished(result) }
             } catch {

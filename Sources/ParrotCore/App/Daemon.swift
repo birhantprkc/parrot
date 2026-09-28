@@ -75,6 +75,7 @@ public enum Daemon {
         var observers: [DictationObserver] = []
         if let overlay { observers.append(overlay) }
         observers.append(menuBar)
+        observers.append(LatencyLog())
         let controller = DictationController(
             capture: capture,
             transcriber: transcriber,
