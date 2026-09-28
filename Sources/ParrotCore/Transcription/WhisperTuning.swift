@@ -15,13 +15,16 @@ struct WhisperTuning: Equatable, @unchecked Sendable {
     /// Ask for text only when the audio fits one window. Dictation never
     /// uses segment timestamps.
     var withoutTimestamps = false
+    /// Cut leading and trailing silence before transcription.
+    var trimSilence = false
 
     /// WhisperKit's defaults, as Parrot ran before #49.
     static let baseline = WhisperTuning()
 
     static let standard = WhisperTuning(
         melCompute: .cpuOnly,
-        withoutTimestamps: true
+        withoutTimestamps: true,
+        trimSilence: true
     )
 
     func decodingOptions(language: String?, promptTokens: [Int]?, audioSeconds: Double) -> DecodingOptions {

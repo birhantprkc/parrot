@@ -84,6 +84,7 @@ Sources/ParrotCore/
     TextInjector.swift          delivery into the focused field (paste or typed Unicode)
   Audio/
     AudioCapture.swift          capture engine, device selection, format conversion
+    SilenceTrimmer.swift        cuts leading and trailing silence before transcription (pure, tested)
   Transcription/
     Transcriber.swift           protocol and TranscriptionContext
     TranscriberTimings.swift    where a transcription spent its time, per stage

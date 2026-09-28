@@ -82,7 +82,7 @@ final class WhisperTuningTests: XCTestCase {
         XCTAssertFalse(options.withoutTimestamps)
         XCTAssertEqual(options.language, "en")
         XCTAssertEqual(options.promptTokens, [1, 2])
+        XCTAssertFalse(WhisperTuning.baseline.trimSilence)
         XCTAssertEqual(WhisperTuning.baseline.melCompute, .cpuAndGPU)
     }
 }
-

@@ -51,18 +51,21 @@ actor WhisperKitTranscriber: Transcriber {
         guard let pipeline else { throw TranscriberError.notLoaded }
 
         let started = CFAbsoluteTimeGetCurrent()
+        let input = tuning.trimSilence ? SilenceTrimmer.trim(audio) : audio
+        let trimTime = CFAbsoluteTimeGetCurrent() - started
+
         let options = tuning.decodingOptions(
             language: context.language,
             promptTokens: Self.promptTokens(for: context.prompt, tokenizer: pipeline.tokenizer),
-            audioSeconds: Double(audio.count) / Double(WhisperKit.sampleRate)
+            audioSeconds: Double(input.count) / Double(WhisperKit.sampleRate)
         )
-        let results = try await pipeline.transcribe(audioArray: audio, decodeOptions: options)
+        let results = try await pipeline.transcribe(audioArray: input, decodeOptions: options)
         let raw = results.map(\.text).joined(separator: " ")
         let text = Self.sanitize(raw)
         let timings = Self.timings(
             from: results.map(\.timings),
-            audioSeconds: Double(audio.count) / Double(WhisperKit.sampleRate),
-            preprocessing: 0,
+            audioSeconds: Double(input.count) / Double(WhisperKit.sampleRate),
+            preprocessing: trimTime,
             total: CFAbsoluteTimeGetCurrent() - started
         )
         return Transcript(text: text, timings: timings)
