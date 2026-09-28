@@ -36,11 +36,10 @@
 	<true/>
 	<key>SUFeedURL</key>
 	<string>https://github.com/humanitas-labs/parrot/releases/latest/download/appcast.xml</string>
-	<!-- Placeholder until the release key exists: Sparkle's generate_keys prints the public key to
-	     put here, and the private key is the SPARKLE_PRIVATE_KEY repository secret (see
-	     .github/workflows/release.yml). Updates stay off while this is not a real key. -->
+	<!-- Public half of the Parrot update key (generate_keys --account parrot). The private
+	     half is the SPARKLE_PRIVATE_KEY repository secret; release.yml checks they match. -->
 	<key>SUPublicEDKey</key>
-	<string>REPLACE_WITH_SPARKLE_PUBLIC_ED_KEY</string>
+	<string>sBKarVRumHAb75Avth4zTROhclldBN+nUC3ffkhcoTw=</string>
 	<key>SURequireSignedFeed</key>
 	<true/>
 	<key>SUScheduledCheckInterval</key>
