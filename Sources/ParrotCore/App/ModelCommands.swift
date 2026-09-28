@@ -3,9 +3,13 @@ import Foundation
 /// Behind `parrot models list` and `parrot models download <id>`.
 public enum ModelCommands {
     public static func list() {
+        // Column width follows the longest id: `padding(toLength:)` truncates
+        // a longer string, and a truncated id cannot be copied into
+        // `parrot models download`.
+        let width = max(26, ModelRegistry.shared.map(\.id.count).max() ?? 0)
         for m in ModelRegistry.shared {
             let star = m.recommended ? "★" : " "
-            let id = m.id.padding(toLength: 26, withPad: " ", startingAt: 0)
+            let id = m.id.padding(toLength: width, withPad: " ", startingAt: 0)
             let langs = "[\(m.languages.joined(separator: ","))]"
                 .padding(toLength: 9, withPad: " ", startingAt: 0)
             let size = String(format: "%5d MB", m.sizeMB)
