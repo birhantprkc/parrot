@@ -108,7 +108,7 @@ Sources/ParrotCore/
   UI/
     MenuBarController.swift
     RecordingOverlay.swift
-    SettingsWindow.swift        window shell and section slots
+    SettingsWindow.swift        the Settings window: one grouped form, header, dictionary and general rows
     Sections/                   one view per settings section
 
 Sources/parrot/

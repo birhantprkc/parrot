@@ -25,7 +25,7 @@ package enum Paths {
     /// `~/Library/Caches/parrot` — debug output such as `--dump-wav`.
     package static var caches: URL { library("Caches/parrot") }
 
-    /// `settings.json` in `config`. Declared for the settings store; not read or written yet.
+    /// `settings.json` in `config`: preferences, read and written by `SettingsStore`.
     static var settingsFile: URL { config.appendingPathComponent("settings.json") }
 
     /// `dictionary.json` in `config`: the user's terms, replacements and example sentences.

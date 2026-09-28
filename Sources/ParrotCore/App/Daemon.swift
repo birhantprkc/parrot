@@ -38,7 +38,13 @@ public struct DaemonOptions {
 public enum Daemon {
     /// Throws `StartupFailure` if the daemon cannot start.
     public static func run(_ options: DaemonOptions) throws {
-        let chosenModel = try Startup.check(modelID: options.model, skipDoctor: options.skipDoctor)
+        // ArgumentParser calls run() on the main thread.
+        let settings = MainActor.assumeIsolated { SettingsStore() }
+        let savedModel = MainActor.assumeIsolated { settings.current.model.id }
+        let chosenModel = try Startup.check(
+            modelID: options.model ?? Self.knownModel(savedModel),
+            skipDoctor: options.skipDoctor
+        )
 
         // Startup has already exited on denied access. If the system has never
         // asked, ask now, without waiting, so the prompt is answered while the
@@ -47,16 +53,32 @@ public enum Daemon {
 
         let transcriber = WhisperKitTranscriber(model: chosenModel)
 
-        // ArgumentParser calls run() on the main thread.
         try MainActor.assumeIsolated {
-            try runLoop(model: chosenModel, transcriber: transcriber, options: options)
+            try runLoop(model: chosenModel, transcriber: transcriber, settings: settings, options: options)
         }
+    }
+
+    /// `id` if the registry knows it. A saved id that no longer exists (a
+    /// model removed in an update, a typo in a hand edit) falls back to the
+    /// recommended model instead of stopping Parrot; `--model` stays strict.
+    static func knownModel(_ id: String?) -> String? {
+        guard let id else { return nil }
+        guard ModelRegistry.find(id) != nil else {
+            Log.warning("settings.json: unknown model \"\(id)\"; using the recommended model")
+            return nil
+        }
+        return id
     }
 
     /// Wires the hotkey, capture and UI to a `DictationController` and runs
     /// the AppKit loop. Returns only if the app terminates.
     @MainActor
-    private static func runLoop(model: TranscriptionModel, transcriber: WhisperKitTranscriber, options: DaemonOptions) throws {
+    private static func runLoop(
+        model: TranscriptionModel,
+        transcriber: WhisperKitTranscriber,
+        settings: SettingsStore,
+        options: DaemonOptions
+    ) throws {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
 
@@ -69,6 +91,8 @@ public enum Daemon {
         // Before the menu, which shows "Check for Updates…" only when running.
         if AppLaunch.isApp { Updater.start() }
         let menuBar = MenuBarController(modelID: model.id)
+        let settingsWindow = SettingsWindow(store: settings)
+        menuBar.onOpenSettings = { settingsWindow.show() }
 
         // The dictionary (#33): created on first run, reloaded when it changes.
         let dictionary = DictionaryStore()
@@ -89,6 +113,25 @@ public enum Daemon {
             delivery: TextDelivery(mode: options.injectMode),
             context: dictionaryContext.context
         )
+
+        // Each setting applies itself here when it changes, from the window
+        // or a hand edit of settings.json (#41). CLI flags only set the
+        // starting values of a foreground run.
+        settings.observe { old, new in
+            if old.hotkey != new.hotkey {
+                // #42: recreate the tap for the new key.
+                Log.info("hotkey: \(new.hotkey.key.rawValue); applies at next launch")
+            }
+            if old.model != new.model {
+                // #43: load the new model behind the menu bar and swap it in.
+                Log.info("model: \(new.model.id ?? "recommended"); applies at next launch")
+            }
+            if old.language != new.language {
+                // #43: pass the language to the transcriber.
+                Log.info("language: \(new.language.code ?? "automatic")")
+            }
+        }
+        settings.startWatching()
 
         // HotkeyMonitor reports health on the main thread.
         monitor.onHealthChange = { health in

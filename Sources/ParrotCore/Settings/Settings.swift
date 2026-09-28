@@ -4,8 +4,7 @@ import Foundation
 ///
 /// One field per feature, each a struct declared in that feature's folder.
 /// A missing key decodes to its default, so a file written by an older
-/// version, or `{}`, still loads. Nothing reads or writes the file yet; that
-/// is `SettingsStore`'s job.
+/// version, or `{}`, still loads. `SettingsStore` reads and writes it.
 ///
 /// Feature structs follow the same rule: give every field a default and
 /// decode it with `decodeIfPresent(…) ?? default` in `init(from:)`.

@@ -5,8 +5,8 @@ import AppKit
 /// (since we run as `.accessory` — no dock icon, no main window).
 ///
 /// The menu has named slots, top to bottom: `statusLine`, `modelLine`,
-/// `settingsItem`, `launchAtLoginItem`, `checkForUpdatesItem`, `quitItem`. Features update a slot rather than rebuilding
-/// the menu.
+/// `settingsItem`, `checkForUpdatesItem`, `quitItem`. Features update a slot
+/// rather than rebuilding the menu.
 @MainActor
 final class MenuBarController {
     private static let readyStatus = "idle · hold fn to dictate"
@@ -16,12 +16,10 @@ final class MenuBarController {
     let statusLine: NSMenuItem
     /// Slot: the loaded model.
     let modelLine: NSMenuItem
-    /// Slot: opens the settings window. Disabled until that window exists (#41).
+    /// Slot: opens the Settings window (#41) through `onOpenSettings`.
     let settingsItem: NSMenuItem
-    /// Slot: launch at login through `SMAppService`, checked while on.
-    /// Hidden outside Parrot.app, where there is no bundle to register.
-    let launchAtLoginItem: NSMenuItem
-    private let launchAtLogin = LaunchAtLoginToggle()
+    /// Called by Settings…; set by the daemon, which owns the window.
+    var onOpenSettings: (() -> Void)?
     /// Slot: asks Sparkle to check now. Hidden unless the updater is running,
     /// which it is only in Parrot.app's release builds.
     let checkForUpdatesItem: NSMenuItem
@@ -50,13 +48,8 @@ final class MenuBarController {
 
         menu.addItem(.separator())
 
-        settingsItem = NSMenuItem(title: "Settings…", action: nil, keyEquivalent: ",")
-        settingsItem.isEnabled = false
+        settingsItem = NSMenuItem(title: "Settings…", action: #selector(settingsClicked), keyEquivalent: ",")
         menu.addItem(settingsItem)
-
-        launchAtLoginItem = launchAtLogin.item
-        menu.addItem(launchAtLoginItem)
-        menu.delegate = launchAtLogin
 
         checkForUpdatesItem = NSMenuItem(
             title: "Check for Updates…",
@@ -75,6 +68,7 @@ final class MenuBarController {
 
         statusItem.menu = menu
         quitItem.target = self
+        settingsItem.target = self
         checkForUpdatesItem.target = self
         configureButton()
     }
@@ -123,46 +117,16 @@ final class MenuBarController {
         return image
     }
 
+    @objc private func settingsClicked() {
+        onOpenSettings?()
+    }
+
     @objc private func checkForUpdatesClicked() {
         Updater.checkForUpdates()
     }
 
     @objc private func quitClicked() {
         NSApp.terminate(nil)
-    }
-}
-
-/// Target of the "Launch at login" item. Also the menu's delegate, to
-/// re-read the state each time the menu opens: the user can change it in
-/// System Settings while Parrot runs.
-@MainActor
-private final class LaunchAtLoginToggle: NSObject, NSMenuDelegate {
-    let item = NSMenuItem(title: "Launch at login", action: nil, keyEquivalent: "")
-
-    override init() {
-        super.init()
-        item.action = #selector(toggle)
-        item.target = self
-        item.isHidden = !LoginItem.isAvailable
-        refresh()
-    }
-
-    func menuWillOpen(_ menu: NSMenu) {
-        refresh()
-    }
-
-    private func refresh() {
-        guard LoginItem.isAvailable else { return }
-        item.state = LoginItem.isEnabled ? .on : .off
-    }
-
-    @objc private func toggle() {
-        do {
-            try LoginItem.setEnabled(!LoginItem.isEnabled)
-        } catch {
-            Log.warning("couldn't change launch at login: \(error)")
-        }
-        refresh()
     }
 }
 
