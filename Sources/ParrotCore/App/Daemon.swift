@@ -48,8 +48,11 @@ public enum Daemon {
 
         // Startup has already exited on denied access. If the system has never
         // asked, ask now, without waiting, so the prompt is answered while the
-        // model loads rather than on the first press.
-        MicrophoneAccess.requestIfUndetermined()
+        // model loads rather than on the first press. Parrot.app asks from
+        // the first-run window's Continue instead, never unannounced (#51).
+        if !AppLaunch.isApp {
+            MicrophoneAccess.requestIfUndetermined()
+        }
 
         let transcriber = WhisperKitTranscriber(model: chosenModel)
 
@@ -93,6 +96,8 @@ public enum Daemon {
         let menuBar = MenuBarController(modelID: model.id)
         let settingsWindow = SettingsWindow(store: settings)
         menuBar.onOpenSettings = { settingsWindow.show() }
+        // Parrot.app explains a missing permission before macOS asks (#51).
+        FirstRunWindow.startIfNeeded(menuBar: menuBar)
 
         // The dictionary (#33): created on first run, reloaded when it changes.
         let dictionary = DictionaryStore()
@@ -210,10 +215,13 @@ public enum Daemon {
             return
         }
 
-        Log.info("accessibility not granted; asking once and waiting (System Settings → Privacy & Security → Accessibility → parrot)")
+        Log.info("accessibility not granted; waiting (System Settings → Privacy & Security → Accessibility → parrot)")
         menuBar.setHotkeyHealth(.accessibilityMissing)
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
+        // Parrot.app leaves the prompt to the first-run window's Continue (#51).
+        if !AppLaunch.isApp {
+            let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+            _ = AXIsProcessTrustedWithOptions(options)
+        }
 
         Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { timer in
             MainActor.assumeIsolated {

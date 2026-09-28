@@ -5,7 +5,7 @@ import AppKit
 /// (since we run as `.accessory` — no dock icon, no main window).
 ///
 /// The menu has named slots, top to bottom: `statusLine`, `modelLine`,
-/// `settingsItem`, `checkForUpdatesItem`, `quitItem`. Features update a slot
+/// `grantPermissionsItem`, `settingsItem`, `checkForUpdatesItem`, `quitItem`. Features update a slot
 /// rather than rebuilding the menu.
 @MainActor
 final class MenuBarController {
@@ -16,6 +16,11 @@ final class MenuBarController {
     let statusLine: NSMenuItem
     /// Slot: the loaded model.
     let modelLine: NSMenuItem
+    /// Slot: reopens the first-run window (#51). Hidden unless Parrot.app
+    /// started with a permission missing, and again once both are granted.
+    let grantPermissionsItem: NSMenuItem
+    /// What `grantPermissionsItem` does; set by `FirstRunWindow`.
+    var onGrantPermissions: (() -> Void)?
     /// Slot: opens the Settings window (#41) through `onOpenSettings`.
     let settingsItem: NSMenuItem
     /// Called by Settings…; set by the daemon, which owns the window.
@@ -46,6 +51,14 @@ final class MenuBarController {
         modelLine.isEnabled = false
         menu.addItem(modelLine)
 
+        grantPermissionsItem = NSMenuItem(
+            title: "Grant Permissions…",
+            action: #selector(grantPermissionsClicked),
+            keyEquivalent: ""
+        )
+        grantPermissionsItem.isHidden = true
+        menu.addItem(grantPermissionsItem)
+
         menu.addItem(.separator())
 
         settingsItem = NSMenuItem(title: "Settings…", action: #selector(settingsClicked), keyEquivalent: ",")
@@ -70,6 +83,7 @@ final class MenuBarController {
         quitItem.target = self
         settingsItem.target = self
         checkForUpdatesItem.target = self
+        grantPermissionsItem.target = self
         configureButton()
     }
 
@@ -119,6 +133,10 @@ final class MenuBarController {
 
     @objc private func settingsClicked() {
         onOpenSettings?()
+    }
+
+    @objc private func grantPermissionsClicked() {
+        onGrantPermissions?()
     }
 
     @objc private func checkForUpdatesClicked() {

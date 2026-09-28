@@ -1,6 +1,6 @@
 # Architecture
 
-Last updated: `2026.09.27`
+Last updated: `2026.09.28`
 
 > This document is the target structure. Contributors and agents working on an issue read it first: it says where each kind of change belongs, so parallel work composes instead of colliding.
 
@@ -63,6 +63,7 @@ Sources/ParrotCore/
     DictationObserver.swift     observer protocol and DictationResult (counts and timings, never text)
     LatencyLog.swift            one log line per dictation: press-to-first-sample, release-to-text and each stage, as a DictationObserver
     Startup.swift               startup checks and StartupFailure (permanent vs transient)
+    Permissions.swift           Accessibility and Microphone state, and what the first-run window's Continue asks for (pure, tested)
     Daemon.swift                the `run` command: startup, wiring, run loop
     Updater.swift               Sparkle auto-update, started only in the app role
     AppLaunch.swift             the app role: bundle detection, single instance, migration off the old LaunchAgent
@@ -108,6 +109,7 @@ Sources/ParrotCore/
   UI/
     MenuBarController.swift
     RecordingOverlay.swift
+    FirstRunWindow.swift        explains both permissions before macOS asks; follows the grants live
     SettingsWindow.swift        the Settings window: one grouped form, header, dictionary and general rows
     Sections/                   one view per settings section
 
@@ -207,7 +209,9 @@ Everything after the checks happens behind the menu-bar icon, so the app is neve
 
 Parrot needs Microphone and Accessibility. macOS keys both grants to the app's code identity. With a Developer ID signature and a stable bundle identifier, grants survive updates. With an ad-hoc signature, each new build is a new identity, and the grant silently stops applying. That is why the signed bundle matters, and why `scripts/dev-install.sh` signs local builds with the Developer ID certificate.
 
-A grant belongs to the process that asked: `parrot setup` grants the terminal, which covers foreground runs, but the launch-at-login daemon needs its own. So the daemon asks for itself. Without Accessibility it shows the prompt once, keeps running with "grant Accessibility to start" in the menu bar, and starts the hotkey as soon as the grant appears; it never exits over it, because an exit would either leave the user with nothing running or, under a relaunching supervisor, re-fire the prompt. When microphone access is not yet decided, it requests that once at startup.
+A grant belongs to the process that asked: `parrot setup` grants the terminal, which covers foreground runs, but the launch-at-login daemon needs its own. So the daemon asks for itself. Without Accessibility it keeps running with "grant Accessibility to start" in the menu bar and starts the hotkey as soon as the grant appears; it never exits over it, because an exit would either leave the user with nothing running or, under a relaunching supervisor, re-fire the prompt.
+
+Parrot.app never shows a system prompt unannounced. While either grant is missing at launch it opens the first-run window (`UI/FirstRunWindow.swift`), which says what each permission is for and that audio and text stay on the Mac. Its Continue button makes the requests: the Accessibility prompt and its System Settings pane, then the microphone prompt, or the Microphone pane if access was denied. The window shows each grant as it lands and closes once both are on; until then "Grant Permissions…" in the menu bar reopens it. With both grants in place, as after an update of a signed release, it never appears. A foreground `parrot run` has no window: it shows the Accessibility prompt once when it starts the hotkey and requests an undecided microphone at startup.
 
 ## 10. Decision log
 
