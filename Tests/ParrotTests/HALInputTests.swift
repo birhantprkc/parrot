@@ -94,6 +94,7 @@ final class HALInputTests: XCTestCase {
         XCTAssertEqual((CaptureMode.hal.makeInput() as? HALInput)?.keepsPrepared, false)
         XCTAssertEqual((CaptureMode.prepared.makeInput() as? HALInput)?.keepsPrepared, true)
         XCTAssertEqual(CaptureMode(rawValue: "prepared"), .prepared)
+        XCTAssertEqual(CaptureMode.standard, .hal)
     }
 
     func testStopWithoutStartIsSafe() {

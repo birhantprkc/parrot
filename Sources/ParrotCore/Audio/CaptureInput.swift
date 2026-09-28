@@ -4,7 +4,8 @@ import Foundation
 /// How `AudioCapture` gets samples from the microphone (#52). Every mode
 /// runs the input only while the hotkey is held.
 public enum CaptureMode: String, CaseIterable, Sendable {
-    /// A fresh `AVAudioEngine` per press, released on release (#39).
+    /// A fresh `AVAudioEngine` per press, released on release (#39). The
+    /// default before #52; kept selectable for one release.
     case engine
     /// A Core Audio AUHAL input unit, built per press and disposed on release.
     case hal
@@ -14,7 +15,7 @@ public enum CaptureMode: String, CaseIterable, Sendable {
     case prepared
 
     /// The mode a run uses unless told otherwise.
-    public static let standard: CaptureMode = .engine
+    public static let standard: CaptureMode = .hal
 
     /// The input that implements this mode.
     func makeInput() -> CaptureInput {
