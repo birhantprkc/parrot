@@ -1,0 +1,43 @@
+# Records release download counts once a day on the `stats` branch, since GitHub
+# only keeps a running total per asset. appcast.xml fetches approximate active
+# installs: every copy of Parrot checks for updates once a day.
+name: downloads
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the stats branch
+        run: |
+          git clone --depth 1 --branch stats "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" stats \
+            || { git init -b stats stats && git -C stats remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"; }
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Append today's counts
+        run: |
+          file=stats/downloads.csv
+          [ -f "$file" ] || echo "date,tag,asset,downloads" > "$file"
+          today=$(date -u +%Y-%m-%d)
+          grep -q "^$today," "$file" && exit 0
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases" \
+            --jq ".[] | .tag_name as \$t | .assets[] | \"$today,\(\$t),\(.name),\(.download_count)\"" >> "$file"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Commit
+        working-directory: stats
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add downloads.csv
+          git diff --cached --quiet || git commit -m "stats: downloads $(date -u +%Y-%m-%d)"
+          git push origin stats
