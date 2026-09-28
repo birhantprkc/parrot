@@ -20,6 +20,7 @@ struct WhisperTuning: Equatable, @unchecked Sendable {
     static let baseline = WhisperTuning()
 
     static let standard = WhisperTuning(
+        melCompute: .cpuOnly,
         withoutTimestamps: true
     )
 
