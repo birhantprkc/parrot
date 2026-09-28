@@ -6,6 +6,11 @@
 # CFBundleShortVersionString and CFBundleVersion. Without one it comes from
 # the latest tag, or 0.0.0.
 #
+# Embeds Sparkle.framework (in-app updates, #50) in Contents/Frameworks and
+# signs it inside-out before the app: its XPC services, Autoupdate, and
+# Updater.app, then the framework, all with the same identity and the
+# hardened runtime, as notarization requires.
+#
 # Signs with the first "Developer ID Application" identity in the keychain,
 # with the hardened runtime and packaging/Parrot.entitlements. The
 # designated requirement then names the bundle ID and the team, not a
@@ -37,7 +42,12 @@ echo "→ assembling $APP"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/parrot"
+# SwiftPM links Sparkle through @rpath and puts the framework beside the
+# binary; in the bundle it lives in Contents/Frameworks.
+install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/parrot"
 strip -x "$APP/Contents/MacOS/parrot"
+mkdir -p "$APP/Contents/Frameworks"
+ditto "$(dirname "$BIN")/Sparkle.framework" "$APP/Contents/Frameworks/Sparkle.framework"
 cp packaging/Info.plist "$APP/Contents/Info.plist"
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist"
 plutil -replace CFBundleVersion -string "$VERSION" "$APP/Contents/Info.plist"
@@ -63,16 +73,29 @@ TIMESTAMP="--timestamp"
 
 if [ -n "$IDENTITY" ]; then
     echo "→ signing as $IDENTITY"
-    codesign --force --options runtime $TIMESTAMP \
-        --entitlements packaging/Parrot.entitlements \
-        --sign "$IDENTITY" "$APP"
+    SIGN_AS="$IDENTITY"
 else
     echo "! no Developer ID Application identity; ad-hoc signing."
     echo "  Permissions will not survive the next build, and the app can't be notarized."
-    codesign --force --options runtime \
-        --entitlements packaging/Parrot.entitlements \
-        --sign - "$APP"
+    SIGN_AS="-"
+    TIMESTAMP="--timestamp=none"
 fi
+
+# Inside-out: each nested bundle before the one that contains it, as in
+# Sparkle's documentation. Downloader.xpc keeps its entitlements.
+SPARKLE="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
+for nested in \
+    "$SPARKLE/XPCServices/Installer.xpc" \
+    "$SPARKLE/XPCServices/Downloader.xpc" \
+    "$SPARKLE/Autoupdate" \
+    "$SPARKLE/Updater.app" \
+    "$APP/Contents/Frameworks/Sparkle.framework"; do
+    codesign --force --options runtime $TIMESTAMP --preserve-metadata=entitlements \
+        --sign "$SIGN_AS" "$nested"
+done
+codesign --force --options runtime $TIMESTAMP \
+    --entitlements packaging/Parrot.entitlements \
+    --sign "$SIGN_AS" "$APP"
 
 codesign --verify --deep --strict --verbose=2 "$APP"
 echo "  designated requirement: $(codesign -d -r- "$APP" 2>&1 | sed -n 's/^designated => //p')"

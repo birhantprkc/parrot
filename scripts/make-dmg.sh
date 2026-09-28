@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 # Builds Parrot.app, notarizes and staples it, and packages it into a
-# signed, notarized, stapled DMG with an Applications shortcut.
-#   scripts/make-dmg.sh <version>   → dist/Parrot-<version>.dmg and .dmg.sha256
+# signed, notarized, stapled DMG with an Applications shortcut, plus the
+# zipped app that Sparkle downloads as the in-app update (#50).
+#   scripts/make-dmg.sh <version>   → dist/Parrot-<version>.dmg and .dmg.sha256,
+#                                     dist/Parrot-<version>.zip
+#
+# The update archive is signed, and the appcast written, by the release
+# workflow, which holds the EdDSA key.
 #
 # Notary credentials, first match wins:
 #
@@ -65,6 +70,14 @@ if [ "$NOTARIZE" = 1 ]; then
 else
     echo "! PARROT_NOTARIZE=0: signed but not notarized; Gatekeeper will block it on other Macs."
 fi
+
+# The update archive: the stapled app, zipped the way Sparkle recommends,
+# so the ticket travels with it and the update opens offline.
+UPDATE="$OUT/Parrot-$VERSION.zip"
+echo "→ packaging the update archive $UPDATE"
+mkdir -p "$OUT"
+rm -f "$UPDATE"
+ditto -c -k --sequesterRsrc --keepParent "$APP" "$UPDATE"
 
 echo "→ packaging $DMG"
 rm -rf "$STAGE" && mkdir -p "$STAGE" "$OUT"
