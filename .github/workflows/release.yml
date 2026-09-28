@@ -2,6 +2,11 @@
 # v* tag is pushed, or on demand for an existing tag. install.sh and the
 # README download releases/latest/download/Parrot.dmg.
 #
+# It also publishes the in-app update (#50): Parrot-<version>.zip, signed
+# with the Sparkle EdDSA key, and appcast.xml, which Parrot reads from
+# releases/latest/download/appcast.xml (SUFeedURL in packaging/Info.plist).
+# Publishing a release is the whole update step; there is no manual appcast.
+#
 # Repository secrets it needs, set once under Settings ▸ Secrets ▸ Actions:
 #
 #   MACOS_CERTIFICATE           Developer ID Application certificate and its
@@ -12,6 +17,10 @@
 #                               (.p8), base64-encoded
 #   NOTARY_KEY_ID               its Key ID
 #   NOTARY_ISSUER_ID            the team's Issuer ID
+#   SPARKLE_PRIVATE_KEY         the Sparkle EdDSA private key, as exported by
+#                               Sparkle's `generate_keys -x` (one base64 line);
+#                               its public half is SUPublicEDKey in
+#                               packaging/Info.plist
 name: release
 
 on:
@@ -39,6 +48,33 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.tag || github.ref_name }}
+
+      # Before the slow part: the secret's public half must be the app's
+      # SUPublicEDKey, or the release ships updates its users refuse (or an
+      # app that can't update at all, with the placeholder key).
+      - name: check the update key
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set -eu
+          [ -n "$SPARKLE_PRIVATE_KEY" ] || { echo "SPARKLE_PRIVATE_KEY secret is not set"; exit 1; }
+          EXPECTED="$(/usr/libexec/PlistBuddy -c "Print :SUPublicEDKey" packaging/Info.plist)"
+          DERIVED="$(swift - <<'SWIFT'
+          import CryptoKit
+          import Foundation
+          let secret = ProcessInfo.processInfo.environment["SPARKLE_PRIVATE_KEY"] ?? ""
+          guard let seed = Data(base64Encoded: secret.trimmingCharacters(in: .whitespacesAndNewlines)),
+                let key = try? Curve25519.Signing.PrivateKey(rawRepresentation: seed) else {
+              FileHandle.standardError.write(Data("SPARKLE_PRIVATE_KEY is not a base64 Ed25519 seed, as generate_keys -x writes\n".utf8))
+              exit(1)
+          }
+          print(key.publicKey.rawRepresentation.base64EncodedString())
+          SWIFT
+          )"
+          [ "$DERIVED" = "$EXPECTED" ] || {
+            echo "SUPublicEDKey in packaging/Info.plist ($EXPECTED) is not the public half of SPARKLE_PRIVATE_KEY ($DERIVED)"
+            exit 1
+          }
 
       - name: select Xcode
         run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app /Applications/Xcode_16*.app 2>/dev/null | sort -V | tail -1)"
@@ -103,6 +139,35 @@ jobs:
           grep -q "Notarized Developer ID" "$RUNNER_TEMP/spctl.txt"
           xcrun stapler validate "dist/Parrot-${VERSION#v}.dmg"
 
+      # generate_appcast signs the zip (the enclosure's edSignature) and, since
+      # the app sets SURequireSignedFeed, the appcast itself. The feed holds
+      # only this release: every client reads the latest one.
+      - name: sign the update and write the appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set -eu
+          SPARKLE_BIN=.build/artifacts/sparkle/Sparkle/bin
+          FEED="$RUNNER_TEMP/appcast"
+          ZIP="Parrot-${VERSION#v}.zip"
+          mkdir -p "$FEED"
+          cp "dist/$ZIP" "$FEED/"
+          printf '%s' "$SPARKLE_PRIVATE_KEY" | "$SPARKLE_BIN/generate_appcast" --ed-key-file - \
+            --download-url-prefix "https://github.com/$GITHUB_REPOSITORY/releases/download/$VERSION/" \
+            --full-release-notes-url "https://github.com/$GITHUB_REPOSITORY/releases/tag/$VERSION" \
+            --link "https://github.com/$GITHUB_REPOSITORY" \
+            --maximum-versions 1 \
+            "$FEED"
+          # Check what was written with sign_update: the archive against the
+          # enclosure's signature, and the feed's embedded signature.
+          SIGNATURE="$(sed -n 's/.*sparkle:edSignature="\([^"]*\)".*/\1/p' "$FEED/appcast.xml")"
+          [ -n "$SIGNATURE" ] || { echo "appcast.xml has no edSignature"; exit 1; }
+          printf '%s' "$SPARKLE_PRIVATE_KEY" | "$SPARKLE_BIN/sign_update" --ed-key-file - --verify "dist/$ZIP" "$SIGNATURE"
+          printf '%s' "$SPARKLE_PRIVATE_KEY" | "$SPARKLE_BIN/sign_update" --ed-key-file - --verify "$FEED/appcast.xml"
+          grep -q "releases/download/$VERSION/$ZIP" "$FEED/appcast.xml"
+          cp "$FEED/appcast.xml" dist/appcast.xml
+          cat dist/appcast.xml
+
       - name: stable asset names
         run: |
           set -eu
@@ -121,5 +186,7 @@ jobs:
             dist/Parrot-*.dmg.sha256
             dist/Parrot.dmg
             dist/Parrot.dmg.sha256
+            dist/Parrot-*.zip
+            dist/appcast.xml
           generate_release_notes: true
           fail_on_unmatched_files: true
