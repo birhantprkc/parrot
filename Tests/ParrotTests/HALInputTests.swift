@@ -38,20 +38,34 @@ final class HALInputTests: XCTestCase {
 
     // MARK: Changes to the input
 
-    func testChangeDetection() {
-        XCTAssertFalse(HALInput.hasChanged(built: mic, defaultInput: 42, isAlive: true, current: mic))
-        // The default input moved to another device, or there is none.
-        XCTAssertTrue(HALInput.hasChanged(built: mic, defaultInput: 43, isAlive: true, current: mic))
-        XCTAssertTrue(HALInput.hasChanged(built: mic, defaultInput: nil, isAlive: true, current: mic))
-        // The device went away.
-        XCTAssertTrue(HALInput.hasChanged(built: mic, defaultInput: 42, isAlive: false, current: mic))
-        // Its rate or channels changed, including to an unusable 0.
+    private func classify(defaultInput: AudioDeviceID?, isAlive: Bool = true, _ device: InputDevice) -> HALInput.Change {
+        HALInput.classify(built: mic, current: DeviceWatcher.Snapshot(defaultInput: defaultInput, isAlive: isAlive, device: device))
+    }
+
+    func testANotificationThatChangesNothingKeepsTheRecording() {
+        XCTAssertEqual(classify(defaultInput: 42, mic), .none)
+    }
+
+    func testAnotherDeviceOrAMissingOneIsARouteChange() {
+        XCTAssertEqual(classify(defaultInput: 43, mic), .route)
+        XCTAssertEqual(classify(defaultInput: nil, mic), .route)
+        XCTAssertEqual(classify(defaultInput: 42, isAlive: false, mic), .route)
+    }
+
+    func testANewRateOrChannelCountOnTheSameDeviceIsFollowed() {
         var changed = mic
-        changed.sampleRate = 24_000
-        XCTAssertTrue(HALInput.hasChanged(built: mic, defaultInput: 42, isAlive: true, current: changed))
+        changed.sampleRate = 44_100
+        XCTAssertEqual(classify(defaultInput: 42, changed), .format(changed))
         changed = mic
-        changed.channels = 0
-        XCTAssertTrue(HALInput.hasChanged(built: mic, defaultInput: 42, isAlive: true, current: changed))
+        changed.channels = 2
+        XCTAssertEqual(classify(defaultInput: 42, changed), .format(changed))
+    }
+
+    func testAnUnrecordableNewFormatIsARouteChange() {
+        for (rate, channels) in [(0.0, UInt32(1)), (48_000, 0), (.nan, 1)] {
+            let changed = InputDevice(sampleRate: rate, channels: channels, id: 42)
+            XCTAssertEqual(classify(defaultInput: 42, changed), .route, "\(rate) Hz × \(channels)")
+        }
     }
 
     func testAPreparedUnitIsReusedOnlyForTheSameInput() {
