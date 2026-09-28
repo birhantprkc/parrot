@@ -1,4 +1,9 @@
-<p align="center"><img src="docs/icon.png" width="96" alt="parrot"></p>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/icon-dark.png">
+    <img src="docs/icon.png" width="96" alt="parrot">
+  </picture>
+</p>
 
 # parrot
 
