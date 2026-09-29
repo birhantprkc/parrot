@@ -56,7 +56,6 @@ struct SettingsView: View {
                         NSWorkspace.shared.open(store.file)
                     }
                 }
-                PathLabel(url: store.file)
                 HotkeyRow(store: store)
                 LaunchAtLoginRow()
                 Button("Reset to Defaults") { store.write(Settings()) }
@@ -64,6 +63,8 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     SettingsHeader()
                     Text("General")
+                    PathLabel(url: store.file)
+                        .padding(.top, 2)
                 }
             }
 
