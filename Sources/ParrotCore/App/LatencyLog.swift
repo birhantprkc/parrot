@@ -17,7 +17,7 @@ final class LatencyLog: DictationObserver {
 
     /// For example: `⏱ 412 ms release→text · 5.3 s audio ·
     /// press→first sample 142 ms · stop 3 · pre 4 ·
-    /// enc 14 · dec 380 · post 1 · process 0 · deliver 2 ms · 17 tokens ·
+    /// enc 14 · dec 380 · post 1 · process 0 · deliver 2 ms · lang en · 17 tokens ·
     /// 1 window · 0 fallbacks`.
     static func line(for result: DictationResult) -> String {
         func ms(_ seconds: TimeInterval) -> String { String(format: "%.0f", seconds * 1000) }
@@ -31,8 +31,10 @@ final class LatencyLog: DictationObserver {
         }
         parts.append("stop \(ms(result.captureStop))")
         if let t = result.transcriber {
+            parts.append("pre \(ms(t.preprocessing))")
+            // Automatic language only (#43).
+            if t.languageDetection > 0 { parts.append("detect \(ms(t.languageDetection))") }
             parts += [
-                "pre \(ms(t.preprocessing))",
                 "enc \(ms(t.encoder))",
                 "dec \(ms(t.decoder))",
                 "post \(ms(t.postprocessing))",
@@ -48,6 +50,7 @@ final class LatencyLog: DictationObserver {
             if t.audioSeconds + 0.05 < result.captureDuration {
                 parts.append(String(format: "trimmed to %.1f s", t.audioSeconds))
             }
+            if let language = t.language { parts.append("lang \(language)") }
             parts += [
                 "\(t.tokens) tokens",
                 "\(t.windows) window\(t.windows == 1 ? "" : "s")",

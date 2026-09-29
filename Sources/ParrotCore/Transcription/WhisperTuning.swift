@@ -52,9 +52,12 @@ package struct WhisperTuning: Equatable, @unchecked Sendable {
         max(0, Int((seconds * Double(WhisperKit.sampleRate)).rounded()))
     }
 
+    /// Options for one transcription. `language` is the language to decode
+    /// in, already chosen (see `SpokenLanguage`), or nil for a model that has
+    /// only one. Detection never runs in the decode, and the task is always
+    /// transcribe: no path falls into Whisper's translate-to-English (#43).
     func decodingOptions(language: String?, promptTokens: [Int]?, audioSeconds: Double) -> DecodingOptions {
-        var options = DecodingOptions()
-        options.language = language
+        var options = DecodingOptions(task: .transcribe, language: language, detectLanguage: false)
         options.promptTokens = promptTokens
         options.withoutTimestamps = withoutTimestamps && Self.fitsOneWindow(audioSeconds)
         return options

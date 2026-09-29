@@ -15,9 +15,11 @@ final class DictionaryContextTests: XCTestCase {
         let english = DictionaryContext(store: store, language: "en").context()
         XCTAssertEqual(english, TranscriptionContext(language: "en", prompt: "I opened PostHog.", vocabulary: ["PostHog"]))
 
+        // Automatic: no prompt yet; the examples go along for the engine to pick from.
         let unknown = DictionaryContext(store: store, language: nil).context()
         XCTAssertNil(unknown.prompt)
         XCTAssertNil(unknown.language)
+        XCTAssertEqual(unknown.examples, ["en": "I opened PostHog."])
 
         XCTAssertNil(DictionaryContext(store: store, language: "pt").context().prompt)
     }
@@ -27,6 +29,26 @@ final class DictionaryContextTests: XCTestCase {
         let turbo = try XCTUnwrap(ModelRegistry.find("whisper-large-v3-turbo"))
         XCTAssertEqual(DictionaryContext.knownLanguage(of: base), "en")
         XCTAssertNil(DictionaryContext.knownLanguage(of: turbo))
+    }
+
+    func testLanguageFollowsTheSettingOnlyForMultilingualModels() throws {
+        let base = try XCTUnwrap(ModelRegistry.find("whisper-base.en"))
+        let turbo = try XCTUnwrap(ModelRegistry.find("whisper-large-v3-turbo"))
+        XCTAssertEqual(DictionaryContext.language(of: base, setting: "pt"), "en")
+        XCTAssertEqual(DictionaryContext.language(of: turbo, setting: "pt"), "pt")
+        XCTAssertNil(DictionaryContext.language(of: turbo, setting: nil))
+        XCTAssertNil(DictionaryContext.language(of: turbo, setting: "xx"))
+    }
+
+    /// In Automatic the transcriber picks the example for the language it
+    /// settled on, and never one in another language.
+    func testDetectedLanguagePicksItsOwnExample() {
+        let examples = ["en": "I opened PostHog.", "pt-BR": "Abri o PostHog."]
+        XCTAssertEqual(WhisperKitTranscriber.example(in: examples, for: "pt"), "Abri o PostHog.")
+        XCTAssertEqual(WhisperKitTranscriber.example(in: examples, for: "en"), "I opened PostHog.")
+        XCTAssertNil(WhisperKitTranscriber.example(in: examples, for: "es"))
+        XCTAssertNil(WhisperKitTranscriber.example(in: examples, for: nil))
+        XCTAssertNil(WhisperKitTranscriber.example(in: [:], for: "en"))
     }
 
     // MARK: Whisper prompt tokens

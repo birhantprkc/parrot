@@ -1,10 +1,11 @@
 import Foundation
 
 /// Where one transcription spent its time, as the engine reports it. Seconds,
-/// and counts; never text.
+/// counts, and the language code; never text.
 ///
 /// The stages add up to `total`: whatever the engine does not attribute to
-/// preprocessing, the encoder or the decoder is `postprocessing`.
+/// preprocessing, language detection, the encoder or the decoder is
+/// `postprocessing`.
 package struct TranscriberTimings: Equatable, Sendable {
     /// No time spent, for a transcription the engine did not time.
     package static let zero = TranscriberTimings()
@@ -13,6 +14,9 @@ package struct TranscriberTimings: Equatable, Sendable {
     var audioSeconds: TimeInterval = 0
     /// Silence trimming, padding the window, and the log-mel spectrogram.
     package var preprocessing: TimeInterval = 0
+    /// Detecting the spoken language before decoding (Automatic, #43): its
+    /// own mel spectrogram and encoder pass, and one decoder step.
+    package var languageDetection: TimeInterval = 0
     /// The audio encoder, over every 30 s window.
     package var encoder: TimeInterval = 0
     /// Decoder setup, the prompt, the token loop, and any temperature fallbacks.
@@ -21,6 +25,8 @@ package struct TranscriberTimings: Equatable, Sendable {
     package var postprocessing: TimeInterval = 0
     /// The whole `transcribe` call, wall clock.
     package var total: TimeInterval = 0
+    /// The language decoded in, as a code (#43), or nil when unknown.
+    package var language: String?
     /// 30 s windows encoded.
     package var windows = 0
     /// Decoder steps, prompt included.

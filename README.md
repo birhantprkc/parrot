@@ -29,6 +29,8 @@ Requires macOS 14+ on Apple Silicon. Parrot is signed and notarized, so permissi
 
 Choose **Launch at login** in **Settings…** to start Parrot with your Mac. A tap shorter than 0.3 s, or a hold with another modifier, is ignored, so shortcuts on the hotkey still work. If `fn` is mapped to input source or emoji, `parrot doctor` shows how to fix it.
 
+To dictate in another language, choose a multilingual model and a Language in Settings (⌘, from the menu). Automatic detects each dictation's language and trusts the languages in your Mac's language settings.
+
 ## 3. Dictionary
 
 Add your names and technical terms to `~/.config/parrot/dictionary.json`, and Parrot spells them your way. Edits apply on the next dictation. See [docs/dictionary.md](docs/dictionary.md).

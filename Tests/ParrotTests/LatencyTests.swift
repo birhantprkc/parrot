@@ -23,6 +23,17 @@ final class TranscriberTimingsTests: XCTestCase {
         XCTAssertEqual(out.fallbacks, 0)
     }
 
+    func testLanguageDetectionIsItsOwnStage() {
+        var t = TranscriptionTimings()
+        t.encoding = 0.020
+        t.fullPipeline = 0.020
+        let out = WhisperKitTranscriber.timings(
+            from: [t], audioSeconds: 2, preprocessing: 0, languageDetection: 0.030, total: 0.060
+        )
+        XCTAssertEqual(out.languageDetection, 0.030, accuracy: 1e-9)
+        XCTAssertEqual(out.postprocessing, 0.010, accuracy: 1e-9)
+    }
+
     func testCountsAFallbackThatWhisperKitRecordsAsIndexZero() {
         var t = TranscriptionTimings()
         t.decodingFallback = 0.05
@@ -50,6 +61,23 @@ final class LatencyLogTests: XCTestCase {
         XCTAssertEqual(
             LatencyLog.line(for: result),
             "⏱ 140 ms release→text · 5.3 s audio · stop 3 · pre 4 · enc 14 · dec 110 · post 1 · process 0 · deliver 2 ms · trimmed to 4.4 s · 17 tokens · 1 window · 0 fallbacks"
+        )
+    }
+
+    func testLineHasLanguageAndDetection() {
+        let result = DictationResult(
+            captureDuration: 2,
+            transcriptionTime: 0.3,
+            charCount: 10,
+            transcriber: TranscriberTimings(
+                audioSeconds: 2, preprocessing: 0.001, languageDetection: 0.090, encoder: 0.050, decoder: 0.150,
+                postprocessing: 0.001, total: 0.292, language: "pt", windows: 1, tokens: 9, fallbacks: 0
+            ),
+            releaseToText: 0.3
+        )
+        XCTAssertEqual(
+            LatencyLog.line(for: result),
+            "⏱ 300 ms release→text · 2.0 s audio · stop 0 · pre 1 · detect 90 · enc 50 · dec 150 · post 1 · process 0 · deliver 0 ms · lang pt · 9 tokens · 1 window · 0 fallbacks"
         )
     }
 
@@ -85,6 +113,20 @@ final class WhisperTuningTests: XCTestCase {
         XCTAssertTrue(tuning.decodingOptions(language: "en", promptTokens: nil, audioSeconds: 5).withoutTimestamps)
         XCTAssertTrue(tuning.decodingOptions(language: "en", promptTokens: nil, audioSeconds: 30).withoutTimestamps)
         XCTAssertFalse(tuning.decodingOptions(language: "en", promptTokens: nil, audioSeconds: 30.5).withoutTimestamps)
+    }
+
+    /// #43: every decode transcribes, never translates, and never detects
+    /// on its own; the language is chosen before it.
+    func testAlwaysTranscribesWithDetectionOff() {
+        for tuning in [WhisperTuning.standard, .baseline] {
+            for language in ["pt", nil] {
+                let options = tuning.decodingOptions(language: language, promptTokens: nil, audioSeconds: 2)
+                XCTAssertEqual(options.task, .transcribe)
+                XCTAssertFalse(options.detectLanguage)
+                XCTAssertTrue(options.usePrefillPrompt)
+                XCTAssertEqual(options.language, language)
+            }
+        }
     }
 
     func testBaselineKeepsWhisperKitDefaults() {

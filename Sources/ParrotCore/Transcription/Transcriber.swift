@@ -15,7 +15,8 @@ protocol Transcriber: Sendable {
 /// What the transcriber is told about the dictation beyond the audio.
 /// Features fill these fields; engines use what they support.
 package struct TranscriptionContext: Equatable, Sendable {
-    /// Spoken language as an ISO 639-1 code, or nil to let the engine decide.
+    /// Spoken language as an ISO 639-1 code, or nil to let the engine decide
+    /// (the Language setting's Automatic).
     var language: String?
     /// Natural text in `language` that biases the model toward expected
     /// words, such as the dictionary's example sentence, or nil for none.
@@ -24,10 +25,16 @@ package struct TranscriptionContext: Equatable, Sendable {
     /// Canonical spellings the user expects, for engines that take a word
     /// list. Empty for none. Whisper ignores it and uses `prompt`.
     var vocabulary: [String]
+    /// Example sentences by language code, for an engine that learns the
+    /// language only when it hears it: with `language` nil it takes the
+    /// sentence for the language it settled on, never one in another
+    /// language. Empty for none.
+    var examples: [String: String]
 
-    init(language: String? = nil, prompt: String? = nil, vocabulary: [String] = []) {
+    init(language: String? = nil, prompt: String? = nil, vocabulary: [String] = [], examples: [String: String] = [:]) {
         self.language = language
         self.prompt = prompt
         self.vocabulary = vocabulary
+        self.examples = examples
     }
 }

@@ -108,7 +108,13 @@ public enum Daemon {
         // The dictionary (#33): created on first run, reloaded when it changes.
         let dictionary = DictionaryStore()
         dictionary.createIfMissing()
-        let dictionaryContext = DictionaryContext(store: dictionary, language: DictionaryContext.knownLanguage(of: model))
+        // Read at each release, so a Language change applies at the next press (#43).
+        let dictionaryContext = {
+            DictionaryContext(
+                store: dictionary,
+                language: DictionaryContext.language(of: model, setting: settings.current.language.code)
+            ).context()
+        }
 
         // Overlay first, then menu bar: the order the UI updated in before.
         var observers: [DictationObserver] = []
@@ -122,7 +128,7 @@ public enum Daemon {
             observers: observers,
             dumpWav: options.dumpWav,
             delivery: TextDelivery(mode: options.injectMode),
-            context: dictionaryContext.context
+            context: dictionaryContext
         )
 
         // Each setting applies itself here when it changes, from the window
@@ -144,8 +150,8 @@ public enum Daemon {
                 Log.info("model: \(new.model.id ?? "recommended"); applies at next launch")
             }
             if old.language != new.language {
-                // #43: pass the language to the transcriber.
-                Log.info("language: \(new.language.code ?? "automatic")")
+                // Read per dictation by dictionaryContext.
+                Log.info("language: \(new.language.code ?? "automatic"); applies at next press")
             }
         }
         settings.startWatching()

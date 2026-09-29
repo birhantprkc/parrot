@@ -43,9 +43,11 @@ package actor WhisperKitTranscriber: Transcriber {
         Log.info("✓ \(model.id) ready")
     }
 
-    /// Uses `context.language` and `context.prompt`. `context.vocabulary` is
-    /// ignored: Whisper takes no word list, and a list given as a prompt
-    /// scores no better than nothing (#23).
+    /// Uses `context.language` and `context.prompt`, or with no language
+    /// (Automatic) detects one and takes its sentence from `context.examples`;
+    /// see `SpokenLanguage`. `context.vocabulary` is ignored: Whisper takes no
+    /// word list, and a list given as a prompt scores no better than nothing
+    /// (#23).
     package func transcribe(_ audio: [Float], context: TranscriptionContext) async throws -> Transcript {
         if pipeline == nil { try await warmUp() }
         guard let pipeline else { throw TranscriberError.notLoaded }
@@ -54,21 +56,74 @@ package actor WhisperKitTranscriber: Transcriber {
         let input = tuning.prepare(audio)
         let trimTime = CFAbsoluteTimeGetCurrent() - started
 
+        let detectStarted = CFAbsoluteTimeGetCurrent()
+        let (language, prompt, detected) = await chooseLanguage(input, context: context, pipeline: pipeline)
+        let detectTime = detected ? CFAbsoluteTimeGetCurrent() - detectStarted : 0
+
         let options = tuning.decodingOptions(
-            language: context.language,
-            promptTokens: Self.promptTokens(for: context.prompt, tokenizer: pipeline.tokenizer),
+            language: language,
+            promptTokens: Self.promptTokens(for: prompt, tokenizer: pipeline.tokenizer),
             audioSeconds: Double(input.count) / Double(WhisperKit.sampleRate)
         )
         let results = try await pipeline.transcribe(audioArray: input, decodeOptions: options)
         let raw = results.map(\.text).joined(separator: " ")
         let text = Self.sanitize(raw)
-        let timings = Self.timings(
+        var timings = Self.timings(
             from: results.map(\.timings),
             audioSeconds: Double(input.count) / Double(WhisperKit.sampleRate),
             preprocessing: trimTime,
+            languageDetection: detectTime,
             total: CFAbsoluteTimeGetCurrent() - started
         )
+        timings.language = language ?? DictionaryContext.knownLanguage(of: model)
         return Transcript(text: text, timings: timings)
+    }
+
+    /// The language to decode `input` in, or nil for none; the prompt to go
+    /// with it; and whether detection ran. Logs what detection heard and what
+    /// was chosen, as codes, never text.
+    private func chooseLanguage(
+        _ input: [Float],
+        context: TranscriptionContext,
+        pipeline: WhisperKit
+    ) async -> (language: String?, prompt: String?, detected: Bool) {
+        switch SpokenLanguage.plan(setting: context.language, model: model) {
+        case .none:
+            return (nil, context.prompt, false)
+        case .fixed(let code):
+            return (code, context.prompt, false)
+        case .detect:
+            let preferred = SpokenLanguage.preferredCodes()
+            let supported = model.supportedLanguages
+            let fallback = preferred.first(where: supported.contains)
+            guard !input.isEmpty else { return (fallback, Self.example(in: context.examples, for: fallback), false) }
+            do {
+                let (detected, logProbs) = try await pipeline.detectLangauge(audioArray: input)
+                // The log probability of the detected language among the
+                // languages only: WhisperKit masks every other token.
+                let probability = logProbs[detected].map { Float(exp(Double($0))) } ?? 0
+                let chosen = SpokenLanguage.resolve(
+                    detected: detected,
+                    probability: probability,
+                    preferred: preferred,
+                    supported: supported
+                )
+                Log.info(String(
+                    format: "language: %@ (detected %@ %.2f%@)",
+                    chosen, detected, probability, chosen == detected ? "" : ", not trusted"
+                ))
+                return (chosen, Self.example(in: context.examples, for: chosen), true)
+            } catch {
+                Log.warning("language detection failed: \(error); using \(fallback ?? "the model's default")")
+                return (fallback, Self.example(in: context.examples, for: fallback), true)
+            }
+        }
+    }
+
+    /// The example sentence in `examples` for `language`, matched as the
+    /// dictionary matches it.
+    static func example(in examples: [String: String], for language: String?) -> String? {
+        examples.isEmpty ? nil : UserDictionary(examples: examples).example(for: language)
     }
 
     /// WhisperKit's per-stage timings folded into Parrot's stages. The decoder
@@ -79,9 +134,15 @@ package actor WhisperKitTranscriber: Transcriber {
         from results: [TranscriptionTimings],
         audioSeconds: TimeInterval,
         preprocessing ownPreprocessing: TimeInterval,
+        languageDetection: TimeInterval = 0,
         total: TimeInterval
     ) -> TranscriberTimings {
-        var out = TranscriberTimings(audioSeconds: audioSeconds, preprocessing: ownPreprocessing, total: total)
+        var out = TranscriberTimings(
+            audioSeconds: audioSeconds,
+            preprocessing: ownPreprocessing,
+            languageDetection: languageDetection,
+            total: total
+        )
         for t in results {
             let preprocessing = t.audioProcessing + t.logmels
             out.preprocessing += preprocessing
@@ -93,7 +154,7 @@ package actor WhisperKitTranscriber: Transcriber {
             // fallback reads 0; any fallback time means at least one happened.
             if t.decodingFallback > 0 { out.fallbacks += Int(t.totalDecodingFallbacks) + 1 }
         }
-        out.postprocessing = max(0, total - out.preprocessing - out.encoder - out.decoder)
+        out.postprocessing = max(0, total - out.preprocessing - out.languageDetection - out.encoder - out.decoder)
         return out
     }
 
