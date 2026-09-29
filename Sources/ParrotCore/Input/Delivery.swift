@@ -57,14 +57,7 @@ final class TextDelivery {
             let spaced = Spacing.spaced(text, before: before)
             // The kind of character only: the log never carries text.
             Log.info("  before cursor: \(before.kind)\(spaced.first == " " && text.first != " " ? " · leading space" : "")")
-            if before == .unknown, spaced.hasSuffix(" "), !text.hasSuffix(" ") {
-                // An app that hides its text may trim a pasted trailing
-                // space, as Slack does; a typed one stays.
-                injector.inject(String(spaced.dropLast()))
-                injector.pressSpace()
-            } else {
-                injector.inject(spaced)
-            }
+            injector.inject(spaced)
         case .discardSecure:
             let when = focusAtStart?.isSecure == true ? "recording start" : "delivery"
             Log.info("  secure field focused at \(when); transcript discarded")
