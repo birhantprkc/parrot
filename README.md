@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/icon-dark.png">
-    <img src="docs/icon.png" width="96" alt="parrot">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/icon-dark.png">
+    <img src="docs/assets/icon.png" width="96" alt="parrot">
   </picture>
 </p>
 

@@ -1,5 +1,5 @@
-// Draws docs/app-icon.png, the 1024 px source for Parrot.app's icon: the
-// bird from docs/icon.png on a white rounded square in the macOS icon grid
+// Draws docs/assets/app-icon.png, the 1024 px source for Parrot.app's icon: the
+// bird from docs/assets/icon.png on a white rounded square in the macOS icon grid
 // (an 824 px body with a 100 px margin). A full-bleed or transparent icon
 // gets a gray tile from macOS 26; this shape does not.
 //
@@ -12,8 +12,8 @@ let corner: CGFloat = 185
 /// The bird's width as a share of the body.
 let birdScale: CGFloat = 0.7
 
-guard let bird = NSImage(contentsOfFile: "docs/icon.png") else {
-    fatalError("run from the repository root: docs/icon.png not found")
+guard let bird = NSImage(contentsOfFile: "docs/assets/icon.png") else {
+    fatalError("run from the repository root: docs/assets/icon.png not found")
 }
 
 let rep = NSBitmapImageRep(
@@ -41,5 +41,5 @@ let birdRect = NSRect(x: (canvas - side) / 2, y: (canvas - side) / 2, width: sid
 bird.draw(in: birdRect)
 
 NSGraphicsContext.restoreGraphicsState()
-try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "docs/app-icon.png"))
-print("wrote docs/app-icon.png")
+try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "docs/assets/app-icon.png"))
+print("wrote docs/assets/app-icon.png")
