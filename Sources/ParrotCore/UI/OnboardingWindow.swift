@@ -103,18 +103,29 @@ enum OnboardingWindow {
         }
     }
 
-    /// Closing the window counts as done, like Get Started, without saving
-    /// the hotkey and languages shown.
-    fileprivate static func closed() {
-        window = nil
-        model = nil
+    /// Closing the window by hand counts as done, like Get Started, without
+    /// saving the hotkey and languages shown. Quitting Parrot with the window
+    /// open, or a relaunch after an update, does not.
+    fileprivate static func closedByUser() {
         if let store, !store.current.onboarding.completed {
             store.update { $0.onboarding.completed = true }
         }
+    }
+
+    fileprivate static func closed() {
+        window = nil
+        model = nil
         refresh()
     }
 
     private final class Delegate: NSObject, NSWindowDelegate {
+        /// Asked only for the close button and ⌘W, not for `close()` from
+        /// Get Started or for quitting.
+        func windowShouldClose(_ sender: NSWindow) -> Bool {
+            MainActor.assumeIsolated { OnboardingWindow.closedByUser() }
+            return true
+        }
+
         func windowWillClose(_ notification: Notification) {
             MainActor.assumeIsolated { OnboardingWindow.closed() }
         }
@@ -137,7 +148,7 @@ final class OnboardingModel: ObservableObject {
         hotkey = settings.hotkey.key
         hotkeyChoices = Onboarding.hotkeyChoices(current: settings.hotkey.key)
         self.preferred = preferred
-        languages = settings.language.spokenOrPreferred.filter(SpokenLanguage.whisperLanguages.contains)
+        languages = Onboarding.initialLanguages(saved: settings.language.spoken, preferred: preferred)
     }
 
     var canGetStarted: Bool { state.allGranted && !languages.isEmpty }

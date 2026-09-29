@@ -57,6 +57,15 @@ enum Onboarding {
         return (mac, common, more)
     }
 
+    /// The languages ticked when the window opens: the saved list, or else
+    /// only the Mac's first language. The Mac's other languages lead the
+    /// menu unticked, so a second language is one click, never a guess.
+    static func initialLanguages(saved: [String]?, preferred: [String]) -> [String] {
+        let known = SpokenLanguage.whisperLanguages
+        if let saved { return saved.filter(known.contains) }
+        return Array(preferred.filter(known.contains).prefix(1))
+    }
+
     /// The pill's title for `names`: "English", "English, Spanish", "English +2".
     static func summary(_ names: [String]) -> String {
         switch names.count {

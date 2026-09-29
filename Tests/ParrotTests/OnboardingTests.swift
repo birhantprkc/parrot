@@ -68,4 +68,10 @@ final class OnboardingTests: XCTestCase {
         turbo.model.id = "whisper-large-v3-turbo"
         XCTAssertEqual(Onboarding.apply(hotkey: .fn, languages: ["es"], preferred: ["en"], to: turbo).model.id, "whisper-large-v3-turbo")
     }
+
+    func testStartsWithOnlyTheMacsFirstLanguage() {
+        XCTAssertEqual(Onboarding.initialLanguages(saved: nil, preferred: ["en", "es"]), ["en"])
+        XCTAssertEqual(Onboarding.initialLanguages(saved: nil, preferred: ["xx", "es"]), ["es"])
+        XCTAssertEqual(Onboarding.initialLanguages(saved: ["en", "fr"], preferred: ["en", "es"]), ["en", "fr"])
+    }
 }
