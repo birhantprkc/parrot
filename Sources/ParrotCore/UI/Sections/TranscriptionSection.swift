@@ -18,18 +18,23 @@ struct TranscriptionSection: View {
 
     var body: some View {
         Section("Transcription") {
-            LabeledContent {
+            // Built by hand: LabeledContent aligns the menu with the first
+            // line, and it should sit centered beside both.
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Model")
+                    if let model = selectedModel, loading.current == nil {
+                        Text(summary(model))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
                 Menu(selectedModel.map(Self.menuTitle) ?? "None") {
                     modelGroup("English", ModelRegistry.shared.filter { !$0.isMultilingual })
                     modelGroup("Multilingual", ModelRegistry.shared.filter(\.isMultilingual))
                 }
                 .fixedSize()
-            } label: {
-                // A second Text in a form row's label shows as its subtitle.
-                Text("Model")
-                if let model = selectedModel, loading.current == nil {
-                    Text(summary(model))
-                }
             }
 
             if let state = loading.current {
