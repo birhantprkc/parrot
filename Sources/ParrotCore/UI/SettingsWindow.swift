@@ -58,13 +58,15 @@ struct SettingsView: View {
                 }
                 HotkeyRow(store: store)
                 LaunchAtLoginRow()
-                Button("Reset to Defaults") { store.write(Settings()) }
+                HStack {
+                    Text("Reset")
+                    Spacer()
+                    Button("Reset to Defaults") { store.write(Settings()) }
+                }
             } header: {
                 VStack(alignment: .leading, spacing: 0) {
                     SettingsHeader()
                     Text("General")
-                    PathLabel(url: store.file)
-                        .padding(.top, 2)
                 }
             }
 
@@ -113,18 +115,6 @@ private struct SettingsHeader: View {
         .frame(maxWidth: .infinity)
         .padding(.bottom, 12)
         .textCase(nil)
-    }
-}
-
-/// A file path in small monospace, selectable so it can be copied.
-struct PathLabel: View {
-    let url: URL
-
-    var body: some View {
-        Text(url.path(percentEncoded: false).replacingOccurrences(of: NSHomeDirectory(), with: "~"))
-            .font(.system(.caption, design: .monospaced))
-            .foregroundStyle(.secondary)
-            .textSelection(.enabled)
     }
 }
 

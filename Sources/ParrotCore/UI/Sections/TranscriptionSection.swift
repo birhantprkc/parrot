@@ -48,7 +48,6 @@ struct TranscriptionSection: View {
                 Spacer()
                 Button("Open Dictionary File") { NSWorkspace.shared.open(Paths.dictionaryFile) }
             }
-            PathLabel(url: Paths.dictionaryFile)
         }
     }
 
