@@ -14,6 +14,9 @@ struct HotkeySection: View {
                     Text(key.displayName).tag(key)
                 }
             }
+            Text("fn doesn't reach macOS on many third-party keyboards; pick Right Option there. Applies from the next press.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 }

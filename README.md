@@ -24,10 +24,10 @@ Requires macOS 14+ on Apple Silicon. Parrot is signed and notarized, so permissi
 ## 2. Usage
 
 1. Click into any text field.
-2. Hold `fn` and speak. A small pill at the bottom of the screen shows the mic is live.
+2. Hold `fn` and speak. A small pill at the bottom of the screen shows the mic is live. On a keyboard where `fn` does nothing (Logitech and most third-party keyboards), choose another key under **Hotkey** in **Settings…**: left or right Option, Command, Control, or Shift. The change applies from the next press.
 3. Release. The transcript is pasted at the cursor, usually within 200–300 ms, and your clipboard is restored.
 
-Choose **Launch at login** in the menu to start Parrot with your Mac. If `fn` is mapped to input source or emoji, `parrot doctor` shows how to fix it.
+Choose **Launch at login** in **Settings…** to start Parrot with your Mac. A tap shorter than 0.3 s, or a hold with another modifier, is ignored, so shortcuts on the hotkey still work. If `fn` is mapped to input source or emoji, `parrot doctor` shows how to fix it.
 
 ## 3. Dictionary
 
@@ -39,12 +39,13 @@ Add your names and technical terms to `~/.config/parrot/dictionary.json`, and Pa
 |---|---|
 | `parrot` | Run in the foreground (^C to quit) |
 | `parrot setup` | One-time setup: permissions and model download |
-| `parrot doctor` | Check permissions and the `fn` key setting |
+| `parrot doctor` | Check permissions, and the `fn` key setting when the hotkey is `fn` |
 | `parrot install --launch-at-login` | Start Parrot at login |
 | `parrot install --cli` | Link `/usr/local/bin/parrot` to Parrot.app |
 | `parrot install --uninstall` | Stop launching at login and remove logs |
 | `parrot models list` | List available models |
 | `parrot --model whisper-large-v3-turbo` | Larger, multilingual model |
+| `parrot --hotkey right-option` | Use another key for this run only; Settings… changes the saved key |
 | `parrot --no-overlay` | Hide the recording pill |
 | `parrot --inject-mode type-unicode` | Type instead of paste (leaves the clipboard alone) |
 

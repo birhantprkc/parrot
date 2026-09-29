@@ -12,6 +12,8 @@ public struct DaemonOptions {
     public var injectMode: InjectMode
     /// How the microphone is run (#52). The standard mode unless `--capture` says otherwise.
     public var captureMode: CaptureMode
+    /// The push-to-talk key for this run only (#42). Nil uses the saved setting.
+    public var hotkey: HotkeyKey?
 
     public init(
         skipDoctor: Bool,
@@ -20,7 +22,8 @@ public struct DaemonOptions {
         noOverlay: Bool,
         model: String?,
         injectMode: InjectMode = .paste,
-        captureMode: CaptureMode = .standard
+        captureMode: CaptureMode = .standard,
+        hotkey: HotkeyKey? = nil
     ) {
         self.skipDoctor = skipDoctor
         self.debugHotkey = debugHotkey
@@ -29,6 +32,7 @@ public struct DaemonOptions {
         self.model = model
         self.injectMode = injectMode
         self.captureMode = captureMode
+        self.hotkey = hotkey
     }
 }
 
@@ -43,6 +47,7 @@ public enum Daemon {
         let savedModel = MainActor.assumeIsolated { settings.current.model.id }
         let chosenModel = try Startup.check(
             modelID: options.model ?? Self.knownModel(savedModel),
+            hotkey: options.hotkey,
             skipDoctor: options.skipDoctor
         )
 
@@ -85,7 +90,7 @@ public enum Daemon {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
 
-        let monitor = HotkeyMonitor(debug: options.debugHotkey)
+        let monitor = HotkeyMonitor(key: options.hotkey ?? settings.current.hotkey.key, debug: options.debugHotkey)
         let capture = AudioCapture(mode: options.captureMode)
         let overlay: RecordingOverlay? = options.noOverlay ? nil : RecordingOverlay()
         if let overlay {
@@ -96,6 +101,7 @@ public enum Daemon {
         let menuBar = MenuBarController(modelID: model.id)
         let settingsWindow = SettingsWindow(store: settings)
         menuBar.onOpenSettings = { settingsWindow.show() }
+        menuBar.setHotkey(monitor.key)
         // Parrot.app explains a missing permission before macOS asks (#51).
         FirstRunWindow.startIfNeeded(menuBar: menuBar)
 
@@ -124,8 +130,14 @@ public enum Daemon {
         // starting values of a foreground run.
         settings.observe { old, new in
             if old.hotkey != new.hotkey {
-                // #42: recreate the tap for the new key.
-                Log.info("hotkey: \(new.hotkey.key.rawValue); applies at next launch")
+                if options.hotkey != nil {
+                    Log.info("hotkey: \(new.hotkey.key.rawValue) saved; --hotkey \(monitor.key.rawValue) stays in effect for this run")
+                } else {
+                    // The tap stays; it matches the new key from the next event.
+                    monitor.setKey(new.hotkey.key)
+                    menuBar.setHotkey(new.hotkey.key)
+                    Log.info("hotkey: \(new.hotkey.key.rawValue); hold \(new.hotkey.key.shortName) to dictate")
+                }
             }
             if old.model != new.model {
                 // #43: load the new model behind the menu bar and swap it in.
@@ -207,7 +219,7 @@ public enum Daemon {
                 throw StartupFailure.hotkeyUnavailable(error)
             }
             menuBar.setHotkeyHealth(.ok)
-            Log.info("listening on fn hold")
+            Log.info("listening on \(monitor.key.shortName) hold")
         }
 
         if AXIsProcessTrusted() {

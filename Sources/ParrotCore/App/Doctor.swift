@@ -16,13 +16,15 @@ public struct Check {
 }
 
 public enum DoctorReport {
-    public static func run() -> [Check] {
-        [
-            checkMicrophone(),
-            checkAccessibility(),
-            checkFnKeyMapping(),
-            checkModelCache(),
-        ]
+    /// `hotkey` is the key in use, nil for the one saved in settings.json.
+    /// The fn mapping matters only when that key is fn (#42).
+    public static func run(hotkey: HotkeyKey? = nil) -> [Check] {
+        // Doctor runs from the command line, on the main thread.
+        let key = hotkey ?? MainActor.assumeIsolated { SettingsStore().current.hotkey.key }
+        var checks = [checkMicrophone(), checkAccessibility()]
+        if key == .fn { checks.append(checkFnKeyMapping()) }
+        checks.append(checkModelCache())
+        return checks
     }
 
     /// Models belong in Application Support. ~/Documents is unreadable from
@@ -57,7 +59,7 @@ public enum DoctorReport {
             return Check(
                 name: "microphone",
                 status: .warn("not yet requested — will prompt on first recording"),
-                remediation: "run parrot and hold Fn once; macOS will prompt"
+                remediation: "run parrot and hold the hotkey once; macOS will prompt"
             )
         case .denied, .restricted:
             return Check(

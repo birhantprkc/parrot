@@ -58,15 +58,16 @@ public enum StartupFailure: Error {
 /// Checks that run before any model loads, so a failing start costs nothing.
 enum Startup {
     /// Runs the startup checks and returns the model to load.
-    /// Throws `StartupFailure`.
-    static func check(modelID: String?, skipDoctor: Bool) throws -> TranscriptionModel {
+    /// Throws `StartupFailure`. `hotkey` is a `--hotkey` override, nil for
+    /// the saved key; it decides whether the fn mapping is checked.
+    static func check(modelID: String?, hotkey: HotkeyKey? = nil, skipDoctor: Bool) throws -> TranscriptionModel {
         // Agents installed before 0.0.6 log to /tmp until the plist is rewritten.
         if Paths.legacyTmpFiles.contains(where: { FileManager.default.fileExists(atPath: $0) }) {
             Log.info("note: old parrot logs found in /tmp; run `parrot install --launch-at-login` again to remove them and log privately.")
         }
 
         if !skipDoctor {
-            let checks = DoctorReport.run()
+            let checks = DoctorReport.run(hotkey: hotkey)
             if !DoctorReport.allOK(checks) {
                 Log.error("startup checks failed:")
                 DoctorReport.print(checks)

@@ -7,7 +7,7 @@ import ParrotCore
 struct Parrot: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "parrot",
-        abstract: "Minimal macOS dictation daemon. Hold Fn, speak, release.",
+        abstract: "Minimal macOS dictation daemon. Hold a key (fn by default), speak, release.",
         version: AppBundle.version,
         subcommands: [Run.self, Setup.self, Doctor.self, Models.self, Install.self],
         defaultSubcommand: Run.self
@@ -54,6 +54,13 @@ struct Run: ParsableCommand {
     )
     var capture: CaptureMode = .standard
 
+    @Option(
+        name: .long,
+        help: "Push-to-talk key for this run only, overriding Settings: \(HotkeyKey.allCases.map(\.rawValue).joined(separator: ", ")).",
+        transform: parseHotkey
+    )
+    var hotkey: HotkeyKey?
+
     func run() throws {
         // The app and a foreground run would both paste every dictation.
         guard AppLaunch.claimSingleInstance() else {
@@ -68,7 +75,8 @@ struct Run: ParsableCommand {
                 noOverlay: noOverlay,
                 model: model,
                 injectMode: injectMode,
-                captureMode: capture
+                captureMode: capture,
+                hotkey: hotkey
             ))
         } catch let failure as StartupFailure {
             // The one exit-code rule. A supervisor that relaunches on nonzero
@@ -94,7 +102,7 @@ struct Setup: ParsableCommand {
 
 struct Doctor: ParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Check microphone, accessibility, and Fn key configuration."
+        abstract: "Check microphone, accessibility, and fn key configuration."
     )
 
     func run() throws {
@@ -166,6 +174,14 @@ private func parseCaptureMode(_ raw: String) throws -> CaptureMode {
         throw ValidationError("expected one of: \(CaptureMode.allCases.map(\.rawValue).joined(separator: ", "))")
     }
     return mode
+}
+
+/// `--hotkey`: a `HotkeyKey` by name.
+private func parseHotkey(_ raw: String) throws -> HotkeyKey {
+    guard let key = HotkeyKey(rawValue: raw) else {
+        throw ValidationError("expected one of: \(HotkeyKey.allCases.map(\.rawValue).joined(separator: ", "))")
+    }
+    return key
 }
 
 /// Maps ParrotCore's `SilentExit` to an exit code. Any other error reaches

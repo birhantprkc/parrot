@@ -64,6 +64,7 @@ final class DictationController {
         switch event {
         case .pressed: press()
         case .released: release()
+        case .cancelled: cancel()
         }
     }
 
@@ -154,6 +155,17 @@ final class DictationController {
                 observers.forEach { $0.dictationFailed(error) }
             }
         }
+    }
+
+    /// The gesture discarded this recording (a short tap, a chord, or a
+    /// hotkey switch): stop capture and transcribe nothing.
+    func cancel() {
+        guard state == .recording else { return }
+        capture.stop()
+        focusAtStart = nil
+        state = inFlight > 0 ? .transcribing : .idle
+        Log.info("○ discarded")
+        observers.forEach { $0.dictationFailed(DictationError.cancelled) }
     }
 
     /// After a transcription ends, return to idle unless a newer recording
