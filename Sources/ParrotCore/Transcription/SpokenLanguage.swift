@@ -15,8 +15,11 @@ import WhisperKit
 package enum SpokenLanguage {
     /// Probability a detected language outside the preferred languages needs
     /// before it is used. Below it, the first preferred language the model
-    /// supports is used instead.
-    package static let foreignThreshold: Float = 0.8
+    /// supports is used instead. 0.8 rejected real Spanish at 0.62 and 0.72
+    /// on whisper-small and translated it into English, while English
+    /// detected at 0.99 or above; someone who speaks a language most of the
+    /// time can add it to their preferred languages.
+    package static let foreignThreshold: Float = 0.7
 
     /// What to do before decoding.
     package enum Plan: Equatable, Sendable {
