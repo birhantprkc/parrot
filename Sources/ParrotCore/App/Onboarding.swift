@@ -58,12 +58,10 @@ enum Onboarding {
     }
 
     /// The languages ticked when the window opens: the saved list, or else
-    /// only the Mac's first language. The Mac's other languages lead the
-    /// menu unticked, so a second language is one click, never a guess.
+    /// the Mac's languages, which is what Parrot follows until the user
+    /// picks.
     static func initialLanguages(saved: [String]?, preferred: [String]) -> [String] {
-        let known = SpokenLanguage.whisperLanguages
-        if let saved { return saved.filter(known.contains) }
-        return Array(preferred.filter(known.contains).prefix(1))
+        (saved ?? preferred).filter(SpokenLanguage.whisperLanguages.contains)
     }
 
     /// The pill's title for `names`: "English", "English, Spanish", "English +2".
