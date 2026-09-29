@@ -113,8 +113,8 @@ final class DictionaryReplacerTests: XCTestCase {
 
     func testProcessorAppliesTheStoresDictionary() throws {
         let dir = try TemporaryDirectory()
-        let file = dir.url.appendingPathComponent("dictionary.json")
-        try #"{"terms": ["PostHog"]}"#.write(to: file, atomically: true, encoding: .utf8)
+        let file = dir.url.appendingPathComponent("dictionary")
+        try "PostHog\n".write(to: file, atomically: true, encoding: .utf8)
         let processor = DictionaryProcessor(store: DictionaryStore(file: file, log: { _ in }))
         XCTAssertEqual(processor.process(Transcript(text: "open posthog")), Transcript(text: "open PostHog"))
     }

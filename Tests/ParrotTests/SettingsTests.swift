@@ -56,6 +56,13 @@ final class SettingsFieldTests: XCTestCase {
         XCTAssertEqual(settings.model.id, "whisper-large-v3-turbo")
         XCTAssertEqual(settings.language.code, "pt")
     }
+
+    func testDictionaryExamplesDecodeAndDefaultToEmpty() throws {
+        XCTAssertEqual(try decode("{}").dictionary.examples, [:])
+        XCTAssertEqual(try decode(#"{"dictionary": {}}"#).dictionary.examples, [:])
+        let settings = try decode(#"{"dictionary": {"examples": {"en": "One sentence.", "pt-BR": "Uma frase."}}}"#)
+        XCTAssertEqual(settings.dictionary.examples, ["en": "One sentence.", "pt-BR": "Uma frase."])
+    }
 }
 
 @MainActor

@@ -10,20 +10,37 @@ package struct DictionaryContext {
     /// The language being spoken, when known. Without it the prompt is left
     /// to the engine, from `examples`.
     let language: String?
+    /// The example sentences, by language code, from `settings.json`
+    /// (`dictionary.examples`).
+    let examples: [String: String]
 
-    package init(store: DictionaryStore, language: String?) {
+    package init(store: DictionaryStore, language: String?, examples: [String: String] = [:]) {
         self.store = store
         self.language = language
+        self.examples = examples
     }
 
     package func context() -> TranscriptionContext {
-        let dictionary = store.current().dictionary
-        return TranscriptionContext(
+        TranscriptionContext(
             language: language,
-            prompt: dictionary.example(for: language),
-            vocabulary: dictionary.vocabulary,
-            examples: language == nil ? dictionary.examples : [:]
+            prompt: UserDictionary(examples: examples).example(for: language),
+            vocabulary: store.current().dictionary.vocabulary,
+            examples: language == nil ? examples : [:]
         )
+    }
+
+    /// The example sentences saved in `settings.json`, read directly for
+    /// tools that run without a `SettingsStore` (which is `@MainActor`), such
+    /// as `parrot-bench`. Empty when the file is missing or doesn't parse.
+    package static func savedExamples() -> [String: String] {
+        savedExamples(in: Paths.settingsFile)
+    }
+
+    static func savedExamples(in file: URL) -> [String: String] {
+        guard let data = try? Data(contentsOf: file),
+              let settings = try? JSONDecoder().decode(Settings.self, from: data)
+        else { return [:] }
+        return settings.dictionary.examples
     }
 
     /// The language a model will hear, when that is certain without a

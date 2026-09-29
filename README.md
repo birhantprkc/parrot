@@ -33,7 +33,7 @@ To dictate in another language, choose a multilingual model in Settings (⌘, fr
 
 ## 3. Dictionary
 
-Add your names and technical terms to `~/.config/parrot/dictionary.json`, and Parrot spells them your way. Edits apply on the next dictation. See [docs/dictionary.md](docs/dictionary.md).
+Add your names and technical terms to `~/.config/parrot/dictionary`, a plain-text table of each word and what the model writes instead, and Parrot spells them your way. **Open Dictionary File** in Settings opens it. Edits apply on the next dictation. See [docs/dictionary.md](docs/dictionary.md).
 
 ## 4. CLI
 

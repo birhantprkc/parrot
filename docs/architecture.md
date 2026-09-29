@@ -104,8 +104,11 @@ Sources/ParrotCore/
     Transcript.swift            the value that flows through processing
     TranscriptProcessor.swift   protocol for post-transcription steps
   Dictionary/
-    Dictionary.swift            the user's terms, replacements, and example sentences
-    DictionaryStore.swift       loads dictionary.json, reloads on change, accepts dotfiles symlinks
+    Dictionary.swift            the user's terms, replacements, and example sentences; the plain-text table's parser and writer
+    DictionaryStore.swift       loads the `dictionary` file, reloads on change, accepts dotfiles symlinks
+    DictionaryMigration.swift   converts the old dictionary.json once at startup; its examples move to settings.json
+    LegacyDictionary.swift      the old JSON parser, used only by the migration
+    DictionarySettings.swift    the example sentences, one per language, in settings.json
     DictionaryProcessor.swift   the replacement pass
     DictionaryContext.swift     the example sentence for the active language, as the prompt
   Stats/
@@ -186,7 +189,7 @@ Every location comes from `Paths`. No other code builds a path.
 
 | Location | Contents |
 |---|---|
-| `~/.config/parrot/` | `settings.json`, `dictionary.json`: what the user edits and may keep in dotfiles. `$XDG_CONFIG_HOME/parrot/` when that is set |
+| `~/.config/parrot/` | `settings.json`, `dictionary` (a plain-text table; see [dictionary.md](dictionary.md)): what the user edits and may keep in dotfiles. `$XDG_CONFIG_HOME/parrot/` when that is set |
 | `~/Library/Application Support/parrot/` | `models/`, `stats.json`: downloaded data and machine state |
 | `~/Library/Logs/parrot/` | daemon logs, owner-only; timings and lengths, never transcript text |
 | `~/Library/Caches/parrot/` | `--dump-wav` debug captures, owner-only |

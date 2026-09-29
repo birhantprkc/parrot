@@ -116,7 +116,12 @@ enum TranscriptionBench {
         }
 
         let language = DictionaryContext.language(of: model, setting: options.language)
-        var chosen = DictionaryContext(store: DictionaryStore(), language: language).context()
+        // The same words and example sentences the app would use.
+        var chosen = DictionaryContext(
+            store: DictionaryStore(),
+            language: language,
+            examples: DictionaryContext.savedExamples()
+        ).context()
         chosen.spokenLanguages = options.spoken
         // In Automatic the prompt is picked from `examples` once the language
         // is detected, so --no-prompt and --prompt set those too.

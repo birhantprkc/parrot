@@ -7,21 +7,34 @@ final class DictionaryContextTests: XCTestCase {
 
     func testContextGivesThePromptOnlyForAKnownMatchingLanguage() throws {
         let dir = try TemporaryDirectory()
-        let file = dir.url.appendingPathComponent("dictionary.json")
-        try #"{"terms": ["PostHog"], "examples": {"en": "I opened PostHog."}}"#
-            .write(to: file, atomically: true, encoding: .utf8)
+        let file = dir.url.appendingPathComponent("dictionary")
+        try "PostHog  post hog\n".write(to: file, atomically: true, encoding: .utf8)
         let store = DictionaryStore(file: file, log: { _ in })
+        // From settings.json, not the dictionary file.
+        let examples = ["en": "I opened PostHog."]
 
-        let english = DictionaryContext(store: store, language: "en").context()
+        let english = DictionaryContext(store: store, language: "en", examples: examples).context()
         XCTAssertEqual(english, TranscriptionContext(language: "en", prompt: "I opened PostHog.", vocabulary: ["PostHog"]))
 
         // Automatic: no prompt yet; the examples go along for the engine to pick from.
-        let unknown = DictionaryContext(store: store, language: nil).context()
+        let unknown = DictionaryContext(store: store, language: nil, examples: examples).context()
         XCTAssertNil(unknown.prompt)
         XCTAssertNil(unknown.language)
         XCTAssertEqual(unknown.examples, ["en": "I opened PostHog."])
 
-        XCTAssertNil(DictionaryContext(store: store, language: "pt").context().prompt)
+        XCTAssertNil(DictionaryContext(store: store, language: "pt", examples: examples).context().prompt)
+        XCTAssertNil(DictionaryContext(store: store, language: "en").context().prompt, "no examples, no prompt")
+    }
+
+    func testSavedExamplesReadTheSettingsFile() throws {
+        let dir = try TemporaryDirectory()
+        let file = dir.url.appendingPathComponent("settings.json")
+        XCTAssertEqual(DictionaryContext.savedExamples(in: file), [:], "missing file")
+        try #"{"dictionary": {"examples": {"en": "I opened PostHog."}}, "hotkey": {"key": "fn"}}"#
+            .write(to: file, atomically: true, encoding: .utf8)
+        XCTAssertEqual(DictionaryContext.savedExamples(in: file), ["en": "I opened PostHog."])
+        try "{".write(to: file, atomically: true, encoding: .utf8)
+        XCTAssertEqual(DictionaryContext.savedExamples(in: file), [:], "unparseable file")
     }
 
     func testKnownLanguageOnlyForSingleLanguageModels() throws {

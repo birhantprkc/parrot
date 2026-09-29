@@ -1,6 +1,7 @@
 import Foundation
 
-/// Loads `dictionary.json` and reloads it when it changes, without a restart.
+/// Loads the dictionary file (`Paths.dictionaryFile`, a plain-text table) and
+/// reloads it when it changes, without a restart.
 ///
 /// `current()` is called before each dictation. It stats the file and reads
 /// it again only when the file's identity, size or modification time changed.
@@ -82,7 +83,7 @@ package final class DictionaryStore: @unchecked Sendable {
             log("couldn't write \(file.path): \(error.localizedDescription)")
             return false
         }
-        Log.info("created \(file.path) with an example of each entry")
+        Log.info("created \(file.path) with an example row")
         return true
     }
 
@@ -139,10 +140,7 @@ package final class DictionaryStore: @unchecked Sendable {
         do {
             let dictionary = try UserDictionary.parse(data)
             loaded = Loaded(dictionary)
-            Log.info(
-                "dictionary: \(dictionary.terms.count) terms · \(dictionary.replacements.count) replacements · "
-                    + "examples: \(dictionary.examples.keys.sorted().joined(separator: ", ").ifEmpty("none"))"
-            )
+            Log.info("dictionary: \(dictionary.terms.count) words · \(dictionary.replacements.count) with replacements")
         } catch {
             log("\(file.lastPathComponent) not loaded, \(error); keeping the last good version")
         }
@@ -156,7 +154,8 @@ package final class DictionaryStore: @unchecked Sendable {
         log("\(message); keeping the last good dictionary")
     }
 
-    private static func problem(with st: stat, at path: String) -> String? {
+    /// Why the file at `path`, already resolved, can't be used, or nil.
+    static func problem(with st: stat, at path: String) -> String? {
         if st.st_mode & S_IFMT != S_IFREG { return "\(path) is not a regular file" }
         if st.st_uid != getuid() { return "\(path) is not owned by you" }
         if st.st_size > maxBytes { return "\(path) is larger than \(maxBytes / 1024) KB" }
@@ -173,8 +172,4 @@ package final class DictionaryStore: @unchecked Sendable {
             nanoseconds: st.st_mtimespec.tv_nsec
         )
     }
-}
-
-private extension String {
-    func ifEmpty(_ fallback: String) -> String { isEmpty ? fallback : self }
 }

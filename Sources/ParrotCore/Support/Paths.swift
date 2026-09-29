@@ -28,8 +28,13 @@ package enum Paths {
     /// `settings.json` in `config`: preferences, read and written by `SettingsStore`.
     static var settingsFile: URL { config.appendingPathComponent("settings.json") }
 
-    /// `dictionary.json` in `config`: the user's terms, replacements and example sentences.
-    static var dictionaryFile: URL { config.appendingPathComponent("dictionary.json") }
+    /// `dictionary` in `config`: the user's words and what each replaces, a
+    /// plain-text table. No extension, so it reads as a name, not a format.
+    static var dictionaryFile: URL { config.appendingPathComponent("dictionary") }
+
+    /// `dictionary.json` in `config`: the old format, converted once at
+    /// startup by `DictionaryMigration`.
+    static var legacyDictionaryFile: URL { config.appendingPathComponent("dictionary.json") }
 
     /// The app's stdout.
     static var daemonOutLog: URL { logs.appendingPathComponent("parrot.out.log") }

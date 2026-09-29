@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// The model and the spoken language (#43).
 struct TranscriptionSection: View {
@@ -56,7 +57,7 @@ struct TranscriptionSection: View {
             HStack {
                 Text("Dictionary")
                 Spacer()
-                Button("Open Dictionary File") { NSWorkspace.shared.open(Paths.dictionaryFile) }
+                Button("Open Dictionary File") { Self.openDictionary() }
             }
         }
     }
@@ -173,6 +174,24 @@ struct TranscriptionSection: View {
                 }
             }
             .fixedSize()
+        }
+    }
+
+    /// Opens the dictionary in the default plain-text editor, creating it
+    /// from the template first if it is missing. The file has no extension,
+    /// so `open(_:)` alone would not know what to open it with. If the old
+    /// `dictionary.json` is still there, the conversion at launch failed; that
+    /// file opens instead, so the problem can be fixed and nothing is left
+    /// behind by a new template.
+    private static func openDictionary() {
+        let unconverted = Paths.fileType(Paths.dictionaryFile.path) == nil
+            && Paths.fileType(Paths.legacyDictionaryFile.path) != nil
+        let file = unconverted ? Paths.legacyDictionaryFile : Paths.dictionaryFile
+        if !unconverted { DictionaryStore(file: file).createIfMissing() }
+        let editor = NSWorkspace.shared.urlForApplication(toOpen: UTType.plainText)
+            ?? URL(fileURLWithPath: "/System/Applications/TextEdit.app")
+        NSWorkspace.shared.open([file], withApplicationAt: editor, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+            if let error { Log.warning("couldn't open \(file.path): \(error.localizedDescription)") }
         }
     }
 

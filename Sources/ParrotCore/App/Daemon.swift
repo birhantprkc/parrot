@@ -108,14 +108,32 @@ public enum Daemon {
         // A model change loads behind the menu bar and swaps in between dictations (#43).
         let switcher = ModelSwitcher(model: model, transcriber: transcriber, menuBar: menuBar)
 
-        // The dictionary (#33): created on first run, reloaded when it changes.
+        // The dictionary (#33): converted once from dictionary.json, created
+        // on first run, reloaded when it changes.
         let dictionary = DictionaryStore()
-        dictionary.createIfMissing()
+        switch DictionaryMigration.run() {
+        case .converted(let examples):
+            // The text file has no place for example sentences; they move to
+            // settings.json, unless settings already has its own.
+            if !examples.isEmpty {
+                if settings.current.dictionary.examples.isEmpty {
+                    settings.update { $0.dictionary.examples = examples }
+                } else {
+                    Log.info("dictionary: settings.json already has example sentences; kept those")
+                }
+            }
+        case .nothingToDo:
+            dictionary.createIfMissing()
+        case .failed:
+            // Leave the path empty so the next launch tries again.
+            break
+        }
         // Read at each release, so a Language change applies at the next press (#43).
         let dictionaryContext = {
             var context = DictionaryContext(
                 store: dictionary,
-                language: DictionaryContext.language(of: switcher.model, setting: settings.current.language.code)
+                language: DictionaryContext.language(of: switcher.model, setting: settings.current.language.code),
+                examples: settings.current.dictionary.examples
             ).context()
             context.spokenLanguages = settings.current.language.spoken ?? []
             return context

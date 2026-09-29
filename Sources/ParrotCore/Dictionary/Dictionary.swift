@@ -1,6 +1,6 @@
 import Foundation
 
-/// The user's custom dictionary, stored as `Paths.dictionaryFile` (#33).
+/// The user's custom dictionary (#33).
 ///
 /// Three kinds of entry, all optional:
 /// - `terms`: canonical spellings. A term heard in any casing is rewritten to
@@ -10,6 +10,12 @@ import Foundation
 /// - `examples`: one natural sentence per language, keyed by language code,
 ///   that the engine may condition on. Whisper reads it as speech that came
 ///   just before the dictation, so it biases spelling without being a list.
+///
+/// Terms and replacements come from `Paths.dictionaryFile`, a plain-text
+/// table (see `parse(_:)`); every word in it is a term, and its Replaces
+/// column is a replacement to it. Examples live in `settings.json` under
+/// `dictionary.examples` (`DictionarySettings`), because they cost decoding
+/// time and don't fit the table.
 ///
 /// This is the only user-authored text Parrot stores. It never holds
 /// transcript text.
@@ -76,117 +82,134 @@ struct UserDictionary: Codable, Equatable, Sendable {
     }
 }
 
-// MARK: - Parsing
+// MARK: - The text file
 
 extension UserDictionary {
-    /// Decodes `data`, or throws a `DictionaryParseError` that names where the
-    /// problem is and never quotes the file's contents.
+    /// Parses the plain-text dictionary, or throws a `DictionaryParseError`
+    /// that names the line and never quotes the file.
+    ///
+    /// ```
+    /// # Comment
+    /// Word          Replaces
+    /// Vercel        Versailles, Vercell, ver cell
+    /// Parakeet
+    /// ```
+    ///
+    /// - Lines are trimmed; blank lines and lines starting with `#` are skipped.
+    /// - The header line ("Word", "Replaces", any case) is skipped wherever it is.
+    /// - A tab or two or more spaces separate the columns. The first column is
+    ///   the word, single spaces included ("Claude Code"); everything after the
+    ///   first separator is Replaces, a comma-separated list.
+    /// - A comma in the word column means a missing separator, so the file is
+    ///   refused rather than guessed at.
     static func parse(_ data: Data) throws -> UserDictionary {
-        // JSONSerialization reports syntax errors with a byte offset, which
-        // becomes a line and column; JSONDecoder then reports type errors with
-        // a key path.
-        do {
-            let object = try JSONSerialization.jsonObject(with: data, options: [])
-            guard object is [String: Any] else { throw DictionaryParseError.notAnObject }
-        } catch let error as DictionaryParseError {
-            throw error
-        } catch {
-            let offset = (error as NSError).userInfo["NSJSONSerializationErrorIndex"] as? Int
-            throw DictionaryParseError.syntax(position: offset.map { Position(offset: $0, in: data) })
+        guard var text = String(data: data, encoding: .utf8) else { throw DictionaryParseError.notText }
+        if text.hasPrefix("\u{FEFF}") { text.removeFirst() }
+
+        var dictionary = UserDictionary()
+        // "\r\n" is one Character, so CRLF files count lines correctly too.
+        let lines = text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline)
+        for (index, raw) in lines.enumerated() {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.isEmpty || line.hasPrefix("#") { continue }
+            let (word, replaces) = Self.columns(line)
+            if Self.isHeader(word: word, replaces: replaces) { continue }
+            if word.contains(",") { throw DictionaryParseError.missingSeparator(line: index + 1) }
+            let from = replaces?
+                .split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty } ?? []
+            dictionary.terms.append(word)
+            if !from.isEmpty { dictionary.replacements.append(Replacement(from: from, to: word)) }
         }
-        do {
-            return try JSONDecoder().decode(UserDictionary.self, from: data)
-        } catch let error as DecodingError {
-            throw DictionaryParseError.schema(path: Self.keyPath(error), problem: Self.problem(error))
-        }
+        return dictionary
     }
 
-    /// Line and column (both from 1) of a byte offset.
-    struct Position: Equatable {
-        var line: Int
-        var column: Int
-
-        init(line: Int, column: Int) {
-            self.line = line
-            self.column = column
-        }
-
-        init(offset: Int, in data: Data) {
-            var line = 1
-            var lineStart = 0
-            for (i, byte) in data.prefix(max(0, offset)).enumerated() where byte == UInt8(ascii: "\n") {
-                line += 1
-                lineStart = i + 1
-            }
-            // Count characters, not bytes, so a column after "é" is still right.
-            let prefix = data[lineStart..<min(max(offset, lineStart), data.count)]
-            let column = (String(data: prefix, encoding: .utf8)?.count ?? prefix.count) + 1
-            self.init(line: line, column: column)
-        }
-    }
-
-    private static func keyPath(_ error: DecodingError) -> String {
-        let context: DecodingError.Context
-        switch error {
-        case .typeMismatch(_, let c), .valueNotFound(_, let c), .dataCorrupted(let c):
-            context = c
-        case .keyNotFound(let key, let c):
-            return render(c.codingPath + [key])
-        @unknown default:
-            return "?"
-        }
-        return render(context.codingPath)
-    }
-
-    private static func render(_ path: [CodingKey]) -> String {
-        var out = ""
-        for key in path {
-            if let index = key.intValue {
-                out += "[\(index)]"
-            } else {
-                out += out.isEmpty ? key.stringValue : ".\(key.stringValue)"
+    /// Splits a trimmed line at its first tab or run of two or more spaces.
+    private static func columns(_ line: String) -> (word: String, replaces: String?) {
+        let chars = Array(line)
+        for i in chars.indices {
+            let isSeparator = chars[i] == "\t" || (chars[i] == " " && i + 1 < chars.count && chars[i + 1] == " ")
+            if isSeparator {
+                let word = String(chars[..<i]).trimmingCharacters(in: .whitespaces)
+                let rest = String(chars[i...]).trimmingCharacters(in: .whitespaces)
+                return (word, rest.isEmpty ? nil : rest)
             }
         }
-        return out.isEmpty ? "top level" : out
+        return (line, nil)
     }
 
-    private static func problem(_ error: DecodingError) -> String {
-        switch error {
-        case .typeMismatch(let type, _): return "expected \(describe(type))"
-        case .valueNotFound(let type, _): return "expected \(describe(type)), found null"
-        case .keyNotFound: return "missing"
-        case .dataCorrupted: return "invalid value"
-        @unknown default: return "invalid"
-        }
+    private static func isHeader(word: String, replaces: String?) -> Bool {
+        word.caseInsensitiveCompare("Word") == .orderedSame
+            && replaces?.caseInsensitiveCompare("Replaces") == .orderedSame
     }
 
-    private static func describe(_ type: Any.Type) -> String {
-        switch type {
-        case is String.Type: return "a string"
-        case is [String].Type, is [Replacement].Type, is [Any].Type: return "an array"
-        case is [String: String].Type, is [String: Any].Type: return "an object"
-        default: return "\(type)"
+    /// The comment lines at the top of every file Parrot writes.
+    static let preamble = """
+        # Words Parrot should spell your way. Replaces lists what it writes instead.
+        # Separate the columns with two spaces or a tab.
+
+
+        """
+
+    /// This dictionary as the text file: the preamble, the header and one
+    /// aligned row per word. Every term is a row; a replacement's target that
+    /// is not a term becomes one too, and several replacements to the same
+    /// word share its row. `examples` are not part of the file.
+    ///
+    /// What the table cannot hold is left out and counted in `skipped`: a word
+    /// with a comma or starting with `#`, and a Replaces item with a comma.
+    /// Runs of whitespace inside a word or an item become one space, which the
+    /// replacement pass treats the same.
+    func text() -> (text: String, rows: Int, skipped: Int) {
+        func clean(_ s: String) -> String { s.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
+
+        var order: [String] = []
+        var from: [String: [String]] = [:]
+        var skipped = 0
+        func add(_ raw: String, _ items: [String]) {
+            let word = clean(raw)
+            guard !word.isEmpty else { return }
+            guard !word.contains(","), !word.hasPrefix("#") else {
+                skipped += 1
+                return
+            }
+            var list = from[word] ?? []
+            if from[word] == nil { order.append(word) }
+            for item in items.map(clean) where !item.isEmpty {
+                if item.contains(",") {
+                    skipped += 1
+                } else if !list.contains(item) {
+                    list.append(item)
+                }
+            }
+            from[word] = list
         }
+        for term in terms { add(term, []) }
+        for replacement in replacements { add(replacement.to, replacement.from) }
+
+        let width = max(order.map(\.count).max() ?? 0, "Word".count) + 4
+        func row(_ word: String, _ replaces: String) -> String {
+            replaces.isEmpty ? word : word.padding(toLength: width, withPad: " ", startingAt: 0) + replaces
+        }
+        var lines = [row("Word", "Replaces")]
+        for word in order { lines.append(row(word, (from[word] ?? []).joined(separator: ", "))) }
+        return (Self.preamble + lines.joined(separator: "\n") + "\n", order.count, skipped)
     }
 }
 
-/// Why `dictionary.json` did not load. Descriptions give a position or key
-/// path and never quote the file.
+/// Why the dictionary file did not load. Descriptions give a line number and
+/// never quote the file.
 enum DictionaryParseError: Error, Equatable, CustomStringConvertible {
-    case syntax(position: UserDictionary.Position?)
-    case notAnObject
-    case schema(path: String, problem: String)
+    case notText
+    case missingSeparator(line: Int)
 
     var description: String {
         switch self {
-        case .syntax(let position?):
-            return "invalid JSON at line \(position.line), column \(position.column)"
-        case .syntax(nil):
-            return "invalid JSON"
-        case .notAnObject:
-            return "the top level must be an object"
-        case .schema(let path, let problem):
-            return "\(path): \(problem)"
+        case .notText:
+            return "not UTF-8 text"
+        case .missingSeparator(let line):
+            return "line \(line): separate the word from Replaces with two spaces or a tab"
         }
     }
 }
@@ -194,19 +217,13 @@ enum DictionaryParseError: Error, Equatable, CustomStringConvertible {
 // MARK: - First-run template
 
 extension UserDictionary {
-    /// Written on first run so the file shows the shape of each entry type.
-    /// It only touches Parrot's own dependency name, so it changes nothing a
-    /// new user is likely to say. `examples` starts empty: an example sentence
-    /// adds decoding time to every dictation, so it should be the user's own.
-    /// JSON has no comments; the README documents the format.
-    static let template = """
-        {
-          "terms": ["WhisperKit"],
-          "replacements": [
-            { "from": ["whisper kit"], "to": "WhisperKit" }
-          ],
-          "examples": {}
-        }
-
-        """
+    /// Written on first run so the file shows its shape. It only touches
+    /// Parrot's own dependency name, so it changes nothing a new user is
+    /// likely to say. It has no example sentence: those live in settings and
+    /// add decoding time to every dictation, so they should be the user's own.
+    static let template = UserDictionary(
+        terms: ["WhisperKit"],
+        replacements: [Replacement(from: ["whisper kit"], to: "WhisperKit")]
+    ).text().text
 }
+
