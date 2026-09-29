@@ -49,7 +49,7 @@ struct SettingsView: View {
         Form {
             Section {
                 HStack {
-                    Button("Reset to Defaults") { store.write(Settings()) }
+                    Text("Config")
                     Spacer()
                     Button("Open Config File") {
                         store.createIfMissing()
@@ -57,13 +57,14 @@ struct SettingsView: View {
                     }
                 }
                 PathLabel(url: store.file)
-            } header: {
-                SettingsHeader()
-            }
-
-            Section("General") {
                 HotkeyRow(store: store)
                 LaunchAtLoginRow()
+                Button("Reset to Defaults") { store.write(Settings()) }
+            } header: {
+                VStack(alignment: .leading, spacing: 0) {
+                    SettingsHeader()
+                    Text("General")
+                }
             }
 
             TranscriptionSection(store: store)
