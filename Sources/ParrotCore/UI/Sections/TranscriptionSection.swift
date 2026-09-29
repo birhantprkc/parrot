@@ -18,7 +18,7 @@ struct TranscriptionSection: View {
     }
 
     var body: some View {
-        Section("Transcription") {
+        SettingsGroup("Transcription") {
             // Built by hand: LabeledContent aligns the menu with the first
             // line, and it should sit centered beside both.
             HStack {
@@ -31,11 +31,10 @@ struct TranscriptionSection: View {
                     }
                 }
                 Spacer()
-                Menu(selectedModel.map(Self.menuTitle) ?? "None") {
+                PillMenu(title: selectedModel.map(Self.menuTitle) ?? "None") {
                     modelGroup("English", ModelRegistry.shared.filter { !$0.isMultilingual })
                     modelGroup("Multilingual", ModelRegistry.shared.filter(\.isMultilingual))
                 }
-                .fixedSize()
             }
 
             if let state = loading.current {
@@ -54,10 +53,9 @@ struct TranscriptionSection: View {
 
             languagePicker
 
-            HStack {
-                Text("Dictionary")
-                Spacer()
+            PillRow("Dictionary") {
                 Button("Open Dictionary File") { Self.openDictionary() }
+                    .buttonStyle(.pill)
             }
         }
     }
@@ -125,56 +123,34 @@ struct TranscriptionSection: View {
     /// know shows as Automatic, which is how it is treated.
     @ViewBuilder private var languagePicker: some View {
         let multilingual = selectedModel?.isMultilingual ?? false
-        Picker("Language", selection: Binding(
-            get: {
-                guard let code = store.current.language.code?.lowercased(),
-                      SpokenLanguage.whisperLanguages.contains(code) else { return "" }
-                return code
-            },
-            set: { code in store.update { $0.language.code = code.isEmpty ? nil : code } }
-        )) {
-            Text("Automatic").tag("")
-            Divider()
-            ForEach(Self.languages, id: \.code) { language in
-                Text(language.name).tag(language.code)
+        let code = store.current.language.code?.lowercased()
+        let selected = code.flatMap { SpokenLanguage.whisperLanguages.contains($0) ? $0 : nil }
+        PillRow("Language") {
+            PillMenu(title: selected.map { SpokenLanguage.displayName($0) } ?? "Automatic") {
+                languageToggle("Automatic", nil, selected: selected)
+                Divider()
+                ForEach(Self.languages, id: \.code) { language in
+                    languageToggle(language.name, language.code, selected: selected)
+                }
             }
+            .disabled(!multilingual)
         }
-        .disabled(!multilingual)
 
         if !multilingual, let model = selectedModel {
             let only = SpokenLanguage.displayName(model.languages.first ?? "en")
             caption("\(model.displayName) hears \(only) only; choose a multilingual model to set a language.")
         } else if store.current.language.code == nil {
-            spokenLanguagesMenu
+            PillRow("Languages") {
+                SpokenLanguagesButton(store: store)
+            }
         }
     }
 
-    /// The languages Automatic trusts. Starts from the Mac's preferred
-    /// languages; the first edit saves the list to settings.json.
-    private var spokenLanguagesMenu: some View {
-        let spoken = store.current.language.spokenOrPreferred.filter(SpokenLanguage.whisperLanguages.contains)
-        let summary = spoken.map { SpokenLanguage.displayName($0) }.joined(separator: ", ")
-        return LabeledContent("Languages") {
-            Menu(summary.isEmpty ? "None" : summary) {
-                ForEach(Self.languages, id: \.code) { language in
-                    Toggle(language.name, isOn: Binding(
-                        get: { spoken.contains(language.code) },
-                        set: { on in
-                            var next = spoken.filter { $0 != language.code }
-                            if on { next.append(language.code) }
-                            // Keep at least one: an empty list trusts nothing.
-                            guard !next.isEmpty else { return }
-                            store.update { $0.language.spoken = next }
-                        }
-                    ))
-                }
-                if store.current.language.spoken != nil {
-                    Divider()
-                    Button("Use the Mac's Languages") { store.update { $0.language.spoken = nil } }
-                }
-            }
-            .fixedSize()
-        }
+    private func languageToggle(_ name: String, _ code: String?, selected: String?) -> some View {
+        Toggle(name, isOn: Binding(
+            get: { selected == code },
+            set: { on in if on { store.update { $0.language.code = code } } }
+        ))
     }
 
     /// Opens the dictionary in the default plain-text editor, creating it
@@ -199,5 +175,49 @@ struct TranscriptionSection: View {
         Text(text)
             .font(.caption)
             .foregroundStyle(.secondary)
+    }
+}
+
+/// The languages Automatic chooses among, as a pill that opens checkboxes.
+/// Starts from the Mac's preferred languages; the first edit saves the list
+/// to settings.json.
+private struct SpokenLanguagesButton: View {
+    @ObservedObject var store: SettingsStore
+    @State private var isOpen = false
+
+    private var spoken: [String] {
+        store.current.language.spokenOrPreferred.filter(SpokenLanguage.whisperLanguages.contains)
+    }
+
+    var body: some View {
+        Button { isOpen.toggle() } label: {
+            PillLabel(title: Onboarding.summary(spoken.map { SpokenLanguage.displayName($0) }), chevron: true)
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $isOpen, arrowEdge: .bottom) {
+            SpokenLanguagesList(store: store)
+        }
+    }
+}
+
+/// The popover's content, observing the store so ticks show as they change.
+private struct SpokenLanguagesList: View {
+    @ObservedObject var store: SettingsStore
+
+    var body: some View {
+        let spoken = store.current.language.spokenOrPreferred.filter(SpokenLanguage.whisperLanguages.contains)
+        LanguageChecklist(ticked: spoken, toggle: { code in
+            var next = spoken.filter { $0 != code }
+            if !spoken.contains(code) { next.append(code) }
+            // Keep at least one: an empty list trusts nothing.
+            guard !next.isEmpty else { return }
+            store.update { $0.language.spoken = next }
+        }) {
+            if store.current.language.spoken != nil {
+                Divider().padding(.vertical, 2)
+                Button("Use the Mac's Languages") { store.update { $0.language.spoken = nil } }
+                    .buttonStyle(.link)
+            }
+        }
     }
 }

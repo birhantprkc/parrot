@@ -117,7 +117,8 @@ Sources/ParrotCore/
     MenuBarController.swift
     RecordingOverlay.swift
     OnboardingWindow.swift      hotkey, languages and both permissions on one page; follows the grants live
-    SettingsWindow.swift        the Settings window: one grouped form, header, dictionary and general rows
+    SettingsWindow.swift        the Settings window: header, General and Transcription on one page, laid out by hand
+    Pill.swift                  the pill buttons and menus, bird and language checklist shared with the onboarding window
     Sections/                   one view per settings section
 
 Sources/parrot/

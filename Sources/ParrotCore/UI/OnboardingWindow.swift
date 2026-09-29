@@ -131,14 +131,12 @@ final class OnboardingModel: ObservableObject {
 
     let hotkeyChoices: [HotkeyKey]
     let preferred: [String]
-    let menu: (mac: [String], common: [String], more: [String])
     var onGetStarted: (() -> Void)?
 
     init(settings: Settings, preferred: [String] = SpokenLanguage.preferredCodes()) {
         hotkey = settings.hotkey.key
         hotkeyChoices = Onboarding.hotkeyChoices(current: settings.hotkey.key)
         self.preferred = preferred
-        menu = Onboarding.languageMenu(preferred: preferred)
         languages = settings.language.spokenOrPreferred.filter(SpokenLanguage.whisperLanguages.contains)
     }
 
@@ -175,8 +173,7 @@ final class OnboardingModel: ObservableObject {
 }
 
 /// The page: the bird in a circle, the name, the hotkey and languages as
-/// pills, the two permissions, and Get Started. Styled after the Ollama app:
-/// capsule buttons with a light fill and no border.
+/// pills (`Pill.swift`), the two permissions, and Get Started.
 struct OnboardingView: View {
     @ObservedObject var model: OnboardingModel
     @State private var showsLanguages = false
@@ -197,17 +194,6 @@ struct OnboardingView: View {
                     hotkeyMenu
                 }
                 GridRow {
-                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
-                    // Always laid out, so the window doesn't change height.
-                    Text("fn doesn't work on some third-party keyboards; pick Right Option if yours has none.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 230, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .opacity(model.hotkey == .fn ? 1 : 0)
-                        .padding(.top, -4)
-                }
-                GridRow {
                     label("Languages")
                     Button { showsLanguages.toggle() } label: {
                         PillLabel(
@@ -217,7 +203,7 @@ struct OnboardingView: View {
                     }
                     .buttonStyle(.plain)
                     .popover(isPresented: $showsLanguages, arrowEdge: .bottom) {
-                        LanguageList(model: model)
+                        OnboardingLanguages(model: model)
                     }
                 }
                 GridRow {
@@ -265,20 +251,14 @@ struct OnboardingView: View {
     }
 
     private var hotkeyMenu: some View {
-        Menu {
+        PillMenu(title: model.hotkey.displayName) {
             ForEach(model.hotkeyChoices, id: \.self) { key in
                 Toggle(key.displayName, isOn: Binding(
                     get: { model.hotkey == key },
                     set: { if $0 { model.hotkey = key } }
                 ))
             }
-        } label: {
-            PillLabel(title: model.hotkey.displayName, chevron: true)
         }
-        .menuStyle(.button)
-        .buttonStyle(.plain)
-        .menuIndicator(.hidden)
-        .fixedSize()
     }
 
     @ViewBuilder
@@ -289,88 +269,17 @@ struct OnboardingView: View {
                 .symbolRenderingMode(.multicolor)
                 .padding(.vertical, 6)
         } else {
-            Button { model.allow(kind) } label: { PillLabel(title: action, chevron: false) }
-                .buttonStyle(.plain)
+            Button(action) { model.allow(kind) }
+                .buttonStyle(.pill)
         }
     }
 }
 
-/// A capsule with a light fill, the Ollama app's button and menu style.
-private struct PillLabel: View {
-    let title: String
-    let chevron: Bool
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Text(title).font(.system(size: 13, weight: .medium))
-            if chevron {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
-        .background(Capsule().fill(Color.primary.opacity(0.08)))
-        .contentShape(Capsule())
-    }
-}
-
-/// The Parrot bird on a filled circle, like Ollama's llama: a white circle
-/// with a dark bird in dark mode, the reverse in light mode.
-private struct BirdBadge: View {
-    private static let bird: NSImage? = {
-        guard let image = NSImage(data: Data(MenuBarController.birdSVG.utf8)) else { return nil }
-        image.size = NSSize(width: 44, height: 44)
-        image.isTemplate = true
-        return image
-    }()
-
-    var body: some View {
-        ZStack {
-            Circle().fill(Color.primary)
-            if let bird = Self.bird {
-                Image(nsImage: bird)
-                    .renderingMode(.template)
-                    .foregroundStyle(Color(nsColor: .windowBackgroundColor))
-            }
-        }
-        .frame(width: 72, height: 72)
-    }
-}
-
-/// The Languages popover: ticks stay open between clicks, which a menu
-/// can't do. The Mac's languages, the common ones, then More Languages.
-private struct LanguageList: View {
+/// The Languages popover, observing the model so ticks show as they change.
+private struct OnboardingLanguages: View {
     @ObservedObject var model: OnboardingModel
-    @State private var showsMore = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 6) {
-                rows(model.menu.mac)
-                if !model.menu.mac.isEmpty { Divider().padding(.vertical, 2) }
-                rows(model.menu.common)
-                Divider().padding(.vertical, 2)
-                DisclosureGroup("More Languages", isExpanded: $showsMore) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        rows(model.menu.more)
-                    }
-                    .padding(.top, 6)
-                }
-            }
-            .padding(14)
-        }
-        .frame(width: 240, height: 340)
-    }
-
-    private func rows(_ codes: [String]) -> some View {
-        ForEach(codes, id: \.self) { code in
-            Toggle(SpokenLanguage.displayName(code), isOn: Binding(
-                get: { model.isTicked(code) },
-                set: { _ in model.toggle(code) }
-            ))
-            .toggleStyle(.checkbox)
-        }
+        LanguageChecklist(ticked: model.languages, toggle: model.toggle)
     }
 }

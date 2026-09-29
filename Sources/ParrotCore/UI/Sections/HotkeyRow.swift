@@ -5,12 +5,14 @@ struct HotkeyRow: View {
     @ObservedObject var store: SettingsStore
 
     var body: some View {
-        Picker("Hotkey", selection: Binding(
-            get: { store.current.hotkey.key },
-            set: { key in store.update { $0.hotkey.key = key } }
-        )) {
-            ForEach(HotkeyKey.allCases, id: \.self) { key in
-                Text(key.displayName).tag(key)
+        PillRow("Hotkey") {
+            PillMenu(title: store.current.hotkey.key.displayName) {
+                ForEach(HotkeyKey.allCases, id: \.self) { key in
+                    Toggle(key.displayName, isOn: Binding(
+                        get: { store.current.hotkey.key == key },
+                        set: { on in if on { store.update { $0.hotkey.key = key } } }
+                    ))
+                }
             }
         }
     }

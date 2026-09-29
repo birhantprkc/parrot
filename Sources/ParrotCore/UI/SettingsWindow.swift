@@ -41,43 +41,47 @@ final class SettingsWindow {
 }
 
 
-/// Every setting in one scrolling form. Controls write straight through to
+/// Every setting on one scrolling page. Controls write straight through to
 /// `settings.json` via `SettingsStore`, and a hand edit of the file updates
 /// the controls, so the window and the file never disagree. The window holds
 /// no state of its own (ADR-002).
+///
+/// Laid out by hand rather than as a grouped `Form`, whose row boxes can't
+/// be removed on macOS: rows sit on the window background and the pills
+/// carry the style, as in the onboarding window.
 struct SettingsView: View {
     @ObservedObject var store: SettingsStore
 
     var body: some View {
-        Form {
-            Section {
-                HStack {
-                    Text("Config")
-                    Spacer()
-                    Button("Open Config File") {
-                        store.createIfMissing()
-                        NSWorkspace.shared.open(store.file)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                SettingsHeader()
+                    .padding(.bottom, 8)
+                Divider()
+                SettingsGroup("General") {
+                    PillRow("Config") {
+                        Button("Open Config File") {
+                            store.createIfMissing()
+                            NSWorkspace.shared.open(store.file)
+                        }
+                        .buttonStyle(.pill)
+                    }
+                    HotkeyRow(store: store)
+                    LaunchAtLoginRow()
+                    PillRow("Reset") {
+                        Button("Reset to Defaults") { store.write(Settings()) }
+                            .buttonStyle(.pill)
                     }
                 }
-                HotkeyRow(store: store)
-                LaunchAtLoginRow()
-                HStack {
-                    Text("Reset")
-                    Spacer()
-                    Button("Reset to Defaults") { store.write(Settings()) }
-                }
-            } header: {
-                VStack(alignment: .leading, spacing: 0) {
-                    SettingsHeader()
-                    Text("General")
-                }
+                Divider()
+                TranscriptionSection(store: store)
             }
-
-            TranscriptionSection(store: store)
+            .padding(.horizontal, 32)
+            .padding(.top, 36)
+            .padding(.bottom, 32)
         }
-        .formStyle(.grouped)
         // Escape and ⌘W close the window: an accessory app has no menu bar
-        // of its own to carry Close. Behind the form, so it takes no row.
+        // of its own to carry Close. Behind the page, so it takes no row.
         .background {
             Button("Close") { NSApp.keyWindow?.performClose(nil) }
                 .keyboardShortcut("w", modifiers: .command)
@@ -90,24 +94,30 @@ struct SettingsView: View {
     }
 }
 
-/// The Parrot bird with the title and version centered under it. A section
-/// header, so it sits on the window background rather than in a row.
-private struct SettingsHeader: View {
-    private static let bird: NSImage? = {
-        guard let image = NSImage(data: Data(MenuBarController.birdSVG.utf8)) else { return nil }
-        image.size = NSSize(width: 72, height: 72)
-        image.isTemplate = true
-        return image
-    }()
+/// A titled group of rows, such as General.
+struct SettingsGroup<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    init(_ title: String, @ViewBuilder content: @escaping () -> Content) {
+        self.title = title
+        self.content = content
+    }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(title).font(.title3.weight(.semibold))
+            content()
+        }
+    }
+}
+
+/// The Parrot bird, with the title and version centered under it.
+private struct SettingsHeader: View {
+    var body: some View {
         VStack(spacing: 4) {
-            if let bird = Self.bird {
-                Image(nsImage: bird)
-                    .renderingMode(.template)
-                    .foregroundStyle(.primary)
-                    .padding(.bottom, 12)
-            }
+            BirdBadge()
+                .padding(.bottom, 12)
             Text("Parrot · Settings")
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
@@ -116,8 +126,6 @@ private struct SettingsHeader: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.bottom, 28)
-        .textCase(nil)
     }
 }
 
@@ -129,7 +137,10 @@ private struct LaunchAtLoginRow: View {
 
     var body: some View {
         if LoginItem.isAvailable {
-            Toggle("Launch at login", isOn: Binding(
+            // Outside a Form a toggle is a checkbox; this keeps the switch
+            // on the right, like the other controls.
+            PillRow("Launch at login") {
+                Toggle("Launch at login", isOn: Binding(
                 get: { isOn },
                 set: { on in
                     do {
@@ -139,7 +150,10 @@ private struct LaunchAtLoginRow: View {
                     }
                     isOn = LoginItem.isEnabled
                 }
-            ))
+                ))
+                .toggleStyle(.switch)
+                .labelsHidden()
+            }
             .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
                 isOn = LoginItem.isEnabled
             }
