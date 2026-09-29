@@ -18,13 +18,15 @@ struct TranscriptionSection: View {
 
     var body: some View {
         Section("Transcription") {
-            Picker("Model", selection: Binding(
-                get: { selectedModel?.id ?? "" },
-                set: { id in store.update { $0.model.id = id } }
-            )) {
-                ForEach(ModelRegistry.shared, id: \.id) { model in
-                    Text(label(model)).tag(model.id)
+            LabeledContent("Model") {
+                Menu(selectedModel.map(Self.menuTitle) ?? "None") {
+                    modelGroup("English", ModelRegistry.shared.filter { !$0.isMultilingual })
+                    modelGroup("Multilingual", ModelRegistry.shared.filter(\.isMultilingual))
                 }
+                .fixedSize()
+            }
+            if let model = selectedModel, loading.current == nil {
+                caption(summary(model))
             }
 
             if let state = loading.current {
@@ -51,18 +53,51 @@ struct TranscriptionSection: View {
         }
     }
 
-    /// "Whisper Large v3 Turbo · 1620 MB · downloaded". Read when the picker
-    /// draws, so a finished download shows the next time it opens. The model
-    /// folder appears as soon as a download starts, so the one downloading
-    /// says so instead.
-    private func label(_ model: TranscriptionModel) -> String {
-        var label = "\(model.displayName) · \(model.sizeMB) MB"
-        if let state = loading.current, state.modelID == model.id, case .downloading = state.phase {
-            label += " · downloading"
-        } else if WhisperKitTranscriber.isCached(model) {
-            label += " · downloaded"
+    /// One group of the Model menu, smallest first, with a checkmark on the
+    /// selected model.
+    @ViewBuilder
+    private func modelGroup(_ title: String, _ models: [TranscriptionModel]) -> some View {
+        Section(title) {
+            ForEach(models.sorted { $0.sizeMB < $1.sizeMB }, id: \.id) { model in
+                Toggle(Self.shortName(model), isOn: Binding(
+                    get: { selectedModel?.id == model.id },
+                    set: { on in if on { store.update { $0.model.id = model.id } } }
+                ))
+            }
         }
-        return label
+    }
+
+    /// "Small" for "Whisper Small (English)": the menu's groups say the rest.
+    private static func shortName(_ model: TranscriptionModel) -> String {
+        model.displayName
+            .replacingOccurrences(of: "Whisper ", with: "")
+            .replacingOccurrences(of: " (English)", with: "")
+    }
+
+    /// The closed menu, where the groups don't show: "Base (English)".
+    private static func menuTitle(_ model: TranscriptionModel) -> String {
+        model.isMultilingual ? shortName(model) : "\(shortName(model)) (English)"
+    }
+
+    /// How each model trades speed for accuracy, measured with
+    /// `parrot-bench transcription` on an M4 Pro (#43).
+    private static let tradeOff: [String: String] = [
+        "whisper-base.en": "Fastest",
+        "whisper-small.en": "More accurate, slower",
+        "whisper-small": "Fast",
+        "whisper-large-v3-turbo": "Most accurate, slowest",
+    ]
+
+    /// "Fastest · English only · 145 MB". Not shown while the model loads:
+    /// the progress line under the menu says that instead.
+    private func summary(_ model: TranscriptionModel) -> String {
+        let languages = model.isMultilingual ? "99 languages" : "English only"
+        let size = model.sizeMB >= 1000
+            ? String(format: "%.1f GB", Double(model.sizeMB) / 1000)
+            : "\(model.sizeMB) MB"
+        return [Self.tradeOff[model.id], languages, size]
+            .compactMap { $0 }
+            .joined(separator: " · ")
     }
 
     private static func capitalized(_ text: String) -> String {
