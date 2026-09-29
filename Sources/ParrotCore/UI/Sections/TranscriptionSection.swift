@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The model and the spoken language (#43).
@@ -41,6 +42,13 @@ struct TranscriptionSection: View {
             }
 
             languagePicker
+
+            HStack {
+                Text("Dictionary")
+                Spacer()
+                Button("Open Dictionary File") { NSWorkspace.shared.open(Paths.dictionaryFile) }
+            }
+            PathLabel(url: Paths.dictionaryFile)
         }
     }
 

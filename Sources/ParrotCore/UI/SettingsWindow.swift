@@ -67,15 +67,6 @@ struct SettingsView: View {
             }
 
             TranscriptionSection(store: store)
-
-            Section("Dictionary") {
-                HStack {
-                    Text("Terms, replacements and example sentences")
-                    Spacer()
-                    Button("Open Dictionary File") { NSWorkspace.shared.open(Paths.dictionaryFile) }
-                }
-                PathLabel(url: Paths.dictionaryFile)
-            }
         }
         .formStyle(.grouped)
         // Escape and ⌘W close the window: an accessory app has no menu bar
