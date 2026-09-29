@@ -43,6 +43,14 @@ final class SettingsFieldTests: XCTestCase {
         XCTAssertNil(settings.language.code)
     }
 
+    func testSpokenLanguagesDecodeAndDefaultToTheMac() throws {
+        XCTAssertNil(try decode("{}").language.spoken)
+        XCTAssertEqual(try decode("{}").language.spokenOrPreferred, SpokenLanguage.preferredCodes())
+        let settings = try decode(#"{"language": {"spoken": ["en", "es"]}}"#)
+        XCTAssertEqual(settings.language.spoken, ["en", "es"])
+        XCTAssertEqual(settings.language.spokenOrPreferred, ["en", "es"])
+    }
+
     func testModelAndLanguageDecode() throws {
         let settings = try decode(#"{"model": {"id": "whisper-large-v3-turbo"}, "language": {"code": "pt"}}"#)
         XCTAssertEqual(settings.model.id, "whisper-large-v3-turbo")

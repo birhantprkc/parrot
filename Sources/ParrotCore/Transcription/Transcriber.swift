@@ -30,11 +30,21 @@ package struct TranscriptionContext: Equatable, Sendable {
     /// sentence for the language it settled on, never one in another
     /// language. Empty for none.
     package var examples: [String: String]
+    /// The languages the user speaks, most used first, which Automatic
+    /// trusts at any probability. Empty for the Mac's preferred languages.
+    var spokenLanguages: [String]
 
-    init(language: String? = nil, prompt: String? = nil, vocabulary: [String] = [], examples: [String: String] = [:]) {
+    init(
+        language: String? = nil,
+        prompt: String? = nil,
+        vocabulary: [String] = [],
+        examples: [String: String] = [:],
+        spokenLanguages: [String] = []
+    ) {
         self.language = language
         self.prompt = prompt
         self.vocabulary = vocabulary
         self.examples = examples
+        self.spokenLanguages = spokenLanguages
     }
 }

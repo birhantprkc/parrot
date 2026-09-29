@@ -6,19 +6,20 @@ import WhisperKit
 /// - A single-language model such as `whisper-base.en` is never told a
 ///   language and never asked to detect one: it only knows one.
 /// - An explicit Language setting is used as given, with detection off.
-/// - Automatic detects the language, then trusts it by the user's macOS
-///   preferred languages: one in that list is trusted at any probability, so
+/// - Automatic detects the language, then trusts it by the languages the
+///   user speaks (the Languages setting, or the Mac's preferred languages
+///   until it is set): one in that list is trusted at any probability, so
 ///   a bilingual user can alternate between dictations; one outside it only
 ///   at `foreignThreshold` or above. Short clips are where Whisper's
 ///   detection is least reliable (#15: Serbian heard as Spanish, English as
 ///   Portuguese), and a wrong language comes back as a translation.
 package enum SpokenLanguage {
-    /// Probability a detected language outside the preferred languages needs
+    /// Probability a detected language outside the user's languages needs
     /// before it is used. Below it, the first preferred language the model
     /// supports is used instead. 0.8 rejected real Spanish at 0.62 and 0.72
     /// on whisper-small and translated it into English, while English
     /// detected at 0.99 or above; someone who speaks a language most of the
-    /// time can add it to their preferred languages.
+    /// time can add it to their languages in Settings.
     package static let foreignThreshold: Float = 0.7
 
     /// What to do before decoding.

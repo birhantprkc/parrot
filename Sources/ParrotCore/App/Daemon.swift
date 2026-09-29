@@ -112,10 +112,12 @@ public enum Daemon {
         dictionary.createIfMissing()
         // Read at each release, so a Language change applies at the next press (#43).
         let dictionaryContext = {
-            DictionaryContext(
+            var context = DictionaryContext(
                 store: dictionary,
                 language: DictionaryContext.language(of: switcher.model, setting: settings.current.language.code)
             ).context()
+            context.spokenLanguages = settings.current.language.spoken ?? []
+            return context
         }
 
         // Overlay first, then menu bar: the order the UI updated in before.

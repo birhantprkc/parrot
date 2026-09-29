@@ -119,7 +119,7 @@ package actor WhisperKitTranscriber: Transcriber {
         case .fixed(let code):
             return (code, context.prompt, false)
         case .detect:
-            let preferred = SpokenLanguage.preferredCodes()
+            let preferred = context.spokenLanguages.isEmpty ? SpokenLanguage.preferredCodes() : context.spokenLanguages
             let supported = model.supportedLanguages
             let fallback = preferred.first(where: supported.contains)
             guard !input.isEmpty else { return (fallback, Self.example(in: context.examples, for: fallback), false) }

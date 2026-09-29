@@ -93,7 +93,36 @@ struct TranscriptionSection: View {
             let only = SpokenLanguage.displayName(model.languages.first ?? "en")
             caption("\(model.displayName) hears \(only) only; choose a multilingual model to set a language.")
         } else if store.current.language.code == nil {
-            caption("Detects each dictation's language, trusting the languages in your Mac's language settings.")
+            spokenLanguagesMenu
+            caption("Detects each dictation's language. Your languages are always trusted; any other only when detection is confident.")
+        }
+    }
+
+    /// The languages Automatic trusts. Starts from the Mac's preferred
+    /// languages; the first edit saves the list to settings.json.
+    private var spokenLanguagesMenu: some View {
+        let spoken = store.current.language.spokenOrPreferred.filter(SpokenLanguage.whisperLanguages.contains)
+        let summary = spoken.map { SpokenLanguage.displayName($0) }.joined(separator: ", ")
+        return LabeledContent("Languages") {
+            Menu(summary.isEmpty ? "None" : summary) {
+                ForEach(Self.languages, id: \.code) { language in
+                    Toggle(language.name, isOn: Binding(
+                        get: { spoken.contains(language.code) },
+                        set: { on in
+                            var next = spoken.filter { $0 != language.code }
+                            if on { next.append(language.code) }
+                            // Keep at least one: an empty list trusts nothing.
+                            guard !next.isEmpty else { return }
+                            store.update { $0.language.spoken = next }
+                        }
+                    ))
+                }
+                if store.current.language.spoken != nil {
+                    Divider()
+                    Button("Use the Mac's Languages") { store.update { $0.language.spoken = nil } }
+                }
+            }
+            .fixedSize()
         }
     }
 
