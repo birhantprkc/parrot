@@ -47,6 +47,19 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            VStack(spacing: 6) {
+                Image(nsImage: NSApp.applicationIconImage)
+                    .resizable()
+                    .frame(width: 64, height: 64)
+                Text("Parrot · Settings")
+                    .font(.title2.weight(.semibold))
+                Text("Version \(AppBundle.version)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity)
+            .listRowBackground(Color.clear)
+
             Section {
                 HStack {
                     Button("Reset to Defaults") { store.write(Settings()) }
