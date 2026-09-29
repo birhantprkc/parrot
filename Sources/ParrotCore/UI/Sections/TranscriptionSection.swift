@@ -54,15 +54,23 @@ struct TranscriptionSection: View {
     }
 
     /// One group of the Model menu, smallest first, with a checkmark on the
-    /// selected model.
+    /// selected model and a download arrow on each not yet on the Mac.
     @ViewBuilder
     private func modelGroup(_ title: String, _ models: [TranscriptionModel]) -> some View {
         Section(title) {
             ForEach(models.sorted { $0.sizeMB < $1.sizeMB }, id: \.id) { model in
-                Toggle(Self.shortName(model), isOn: Binding(
+                Toggle(isOn: Binding(
                     get: { selectedModel?.id == model.id },
                     set: { on in if on { store.update { $0.model.id = model.id } } }
-                ))
+                )) {
+                    // A model not on the Mac yet downloads when chosen; the
+                    // arrow says so without words.
+                    if WhisperKitTranscriber.isCached(model) {
+                        Text(Self.shortName(model))
+                    } else {
+                        Label(Self.shortName(model), systemImage: "arrow.down.circle")
+                    }
+                }
             }
         }
     }
