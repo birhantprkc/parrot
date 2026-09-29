@@ -92,7 +92,8 @@ struct SettingsView: View {
     }
 }
 
-/// The Parrot bird, as in the README, above the window's title. A section
+/// The Parrot bird centered and the title left-aligned under it, as in the
+/// README. A section
 /// header, so it sits on the window background rather than in a row.
 private struct SettingsHeader: View {
     private static let bird: NSImage? = {
@@ -103,20 +104,21 @@ private struct SettingsHeader: View {
     }()
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 4) {
             if let bird = Self.bird {
                 Image(nsImage: bird)
                     .renderingMode(.template)
                     .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 20)
             }
             Text("Parrot · Settings")
-                .font(.title2.weight(.semibold))
+                .font(.title.weight(.semibold))
                 .foregroundStyle(.primary)
             Text("Version \(AppBundle.version)")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity)
         .padding(.bottom, 12)
         .textCase(nil)
     }
