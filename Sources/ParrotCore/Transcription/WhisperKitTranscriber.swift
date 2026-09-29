@@ -7,6 +7,8 @@ package actor WhisperKitTranscriber: Transcriber {
     private let model: TranscriptionModel
     let tuning: WhisperTuning
     private var pipeline: WhisperKit?
+    /// Set by `unload`: this transcriber was replaced and loads nothing more.
+    private var retired = false
 
     package init(model: TranscriptionModel, tuning: WhisperTuning = .standard) {
         self.modelID = model.id
@@ -16,9 +18,10 @@ package actor WhisperKitTranscriber: Transcriber {
 
     /// Loads the model into memory; downloads first if not already on disk.
     /// Call once at startup so the first hotkey press isn't blocked on model
-    /// download/load.
-    package func warmUp() async throws {
-        if pipeline != nil { return }
+    /// download/load. `progress` gets the download's fraction done, 0 to 1,
+    /// when there is anything to download.
+    package func warmUp(progress: (@Sendable (Double) -> Void)? = nil) async throws {
+        if pipeline != nil || retired { return }
         guard let whisperKitID = model.whisperKitID else {
             throw TranscriberError.missingEngineID
         }
@@ -27,9 +30,16 @@ package actor WhisperKitTranscriber: Transcriber {
         // which the launchd daemon can't read and iCloud may evict. The
         // tokenizer folder follows downloadBase.
         let base = try Paths.prepareDirectory(Paths.appSupport)
+        // The same download WhisperKit's init would run, called here to see
+        // its progress. Files already on disk are not fetched again.
+        let folder = try await WhisperKit.download(variant: whisperKitID, downloadBase: base) { p in
+            progress?(p.fractionCompleted)
+        }
+        try Task.checkCancellation()
         let config = WhisperKitConfig(
             model: whisperKitID,
             downloadBase: base,
+            modelFolder: folder.path,
             computeOptions: ModelComputeOptions(
                 melCompute: tuning.melCompute,
                 audioEncoderCompute: tuning.encoderCompute,
@@ -37,10 +47,26 @@ package actor WhisperKitTranscriber: Transcriber {
             ),
             verbose: false,
             prewarm: true,
-            load: true
+            load: true,
+            download: false
         )
-        pipeline = try await WhisperKit(config)
+        let loaded = try await WhisperKit(config)
+        // Replaced while loading (a model change during startup): drop it.
+        if retired {
+            await loaded.unloadModels()
+            return
+        }
+        pipeline = loaded
         Log.info("✓ \(model.id) ready")
+    }
+
+    /// Frees the model after a swap to another one (#43). A load still running
+    /// finishes and is dropped, and a later `warmUp` returns at once.
+    package func unload() async {
+        retired = true
+        guard let pipeline else { return }
+        self.pipeline = nil
+        await pipeline.unloadModels()
     }
 
     /// Uses `context.language` and `context.prompt`, or with no language

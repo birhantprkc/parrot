@@ -65,6 +65,7 @@ Sources/ParrotCore/
     Startup.swift               startup checks and StartupFailure (permanent vs transient)
     Permissions.swift           Accessibility and Microphone state, and what the first-run window's Continue asks for (pure, tested)
     Daemon.swift                the `run` command: startup, wiring, run loop
+    ModelSwitcher.swift         a model change while running: loads the new model behind the menu bar, swaps it in between dictations
     Updater.swift               Sparkle auto-update, started only in the app role
     AppLaunch.swift             the app role: bundle detection, single instance, migration off the old LaunchAgent
     LoginItem.swift, CommandLineLink.swift

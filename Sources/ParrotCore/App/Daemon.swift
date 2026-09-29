@@ -104,6 +104,8 @@ public enum Daemon {
         menuBar.setHotkey(monitor.key)
         // Parrot.app explains a missing permission before macOS asks (#51).
         FirstRunWindow.startIfNeeded(menuBar: menuBar)
+        // A model change loads behind the menu bar and swaps in between dictations (#43).
+        let switcher = ModelSwitcher(model: model, transcriber: transcriber, menuBar: menuBar)
 
         // The dictionary (#33): created on first run, reloaded when it changes.
         let dictionary = DictionaryStore()
@@ -112,7 +114,7 @@ public enum Daemon {
         let dictionaryContext = {
             DictionaryContext(
                 store: dictionary,
-                language: DictionaryContext.language(of: model, setting: settings.current.language.code)
+                language: DictionaryContext.language(of: switcher.model, setting: settings.current.language.code)
             ).context()
         }
 
@@ -130,6 +132,7 @@ public enum Daemon {
             delivery: TextDelivery(mode: options.injectMode),
             context: dictionaryContext
         )
+        switcher.controller = controller
 
         // Each setting applies itself here when it changes, from the window
         // or a hand edit of settings.json (#41). CLI flags only set the
@@ -146,8 +149,7 @@ public enum Daemon {
                 }
             }
             if old.model != new.model {
-                // #43: load the new model behind the menu bar and swap it in.
-                Log.info("model: \(new.model.id ?? "recommended"); applies at next launch")
+                switcher.select(new.model.id)
             }
             if old.language != new.language {
                 // Read per dictation by dictionaryContext.

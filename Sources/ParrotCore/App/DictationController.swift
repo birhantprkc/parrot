@@ -28,7 +28,8 @@ final class DictationController {
     private(set) var state: State = .idle
 
     private let capture: AudioCapture
-    private let transcriber: Transcriber
+    /// Replaced by `replaceTranscriber` when the model changes (#43).
+    private var transcriber: Transcriber
     private let processors: [TranscriptProcessor]
     private let observers: [DictationObserver]
     private let dumpWav: Bool
@@ -58,6 +59,12 @@ final class DictationController {
         self.dumpWav = dumpWav
         self.delivery = delivery
         self.context = context
+    }
+
+    /// Uses `transcriber` from the next release on. A transcription already
+    /// running finishes with the one it started with.
+    func replaceTranscriber(_ transcriber: Transcriber) {
+        self.transcriber = transcriber
     }
 
     func handle(_ event: HotkeyMonitor.Event) {
