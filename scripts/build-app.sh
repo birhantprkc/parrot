@@ -58,12 +58,14 @@ printf 'APPL????' > "$APP/Contents/PkgInfo"
 # the bare binary: their accessors look beside the .app, where a signed
 # bundle can't hold anything.
 
+# docs/app-icon.png is the bird on a white rounded square, drawn by
+# scripts/make-app-icon.swift from docs/icon.png.
 ICONSET="$OUT/AppIcon.iconset"
 rm -rf "$ICONSET" && mkdir -p "$ICONSET"
 for size in 16 32 128 256 512; do
-    sips -z "$size" "$size" docs/icon.png --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
+    sips -z "$size" "$size" docs/app-icon.png --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
     double=$((size * 2))
-    [ "$double" -le 512 ] && sips -z "$double" "$double" docs/icon.png --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
+    sips -z "$double" "$double" docs/app-icon.png --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
 done
 iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 rm -rf "$ICONSET"
