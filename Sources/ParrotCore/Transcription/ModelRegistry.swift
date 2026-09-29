@@ -34,6 +34,15 @@ package enum ModelRegistry {
             languages: ["en"],
             recommended: false
         ),
+        TranscriptionModel(
+            id: "whisper-small",
+            displayName: "Whisper Small",
+            engine: .whisperKit,
+            whisperKitID: "openai_whisper-small",
+            sizeMB: 490,
+            languages: ["multi"],
+            recommended: false
+        ),
     ]
 
     package static func find(_ id: String) -> TranscriptionModel? {

@@ -31,6 +31,9 @@ struct BenchOptions {
     /// keeps the tuning's choice.
     var leadPad: Double?
     var trailPad: Double?
+    /// The Language setting to run with: a code, or nil for Automatic.
+    /// Single-language models ignore it.
+    var language: String?
 
     init(
         folder: String,
@@ -44,7 +47,8 @@ struct BenchOptions {
         pause: Double = 0,
         trim: Bool? = nil,
         leadPad: Double? = nil,
-        trailPad: Double? = nil
+        trailPad: Double? = nil,
+        language: String? = nil
     ) {
         self.folder = folder
         self.runs = runs
@@ -56,6 +60,7 @@ struct BenchOptions {
         self.decoder = decoder
         self.pause = pause
         self.trim = trim
+        self.language = language
         self.leadPad = leadPad
         self.trailPad = trailPad
     }
@@ -106,17 +111,27 @@ enum TranscriptionBench {
             throw SilentExit(1)
         }
 
-        let language = DictionaryContext.knownLanguage(of: model)
+        let language = DictionaryContext.language(of: model, setting: options.language)
         var chosen = DictionaryContext(store: DictionaryStore(), language: language).context()
-        if options.noPrompt { chosen.prompt = nil }
-        if let prompt = options.prompt { chosen.prompt = prompt }
+        // In Automatic the prompt is picked from `examples` once the language
+        // is detected, so --no-prompt and --prompt set those too.
+        if options.noPrompt {
+            chosen.prompt = nil
+            chosen.examples = [:]
+        }
+        if let prompt = options.prompt {
+            chosen.prompt = prompt
+            chosen.examples = language == nil ? Dictionary(uniqueKeysWithValues: model.supportedLanguages.map { ($0, prompt) }) : [:]
+        }
         let context = chosen
-        let promptLabel = context.prompt.map { "\($0.split(separator: " ").count) words" } ?? "none"
+        let promptLabel = context.prompt.map { "\($0.split(separator: " ").count) words" }
+            ?? (context.examples.isEmpty ? "none" : "the example for the detected language")
 
         let transcriber = WhisperKitTranscriber(model: model, tuning: tuning)
         try blocking { try await transcriber.warmUp() }
 
-        print("model \(model.id) · \(options.baseline ? "baseline" : "standard") tuning · \(describe(tuning)) · prompt \(promptLabel)")
+        let languageLabel = model.isMultilingual ? (language ?? "automatic") : "\(language ?? "-") (model)"
+        print("model \(model.id) · \(options.baseline ? "baseline" : "standard") tuning · \(describe(tuning)) · language \(languageLabel) · prompt \(promptLabel)")
         print("\(files.count) files · \(options.runs) runs each\(options.pause > 0 ? String(format: " · %.0f s idle before each", options.pause) : "") · ms, median/p90")
 
         // The first transcription after loading pays for CoreML's first
@@ -132,6 +147,8 @@ enum TranscriptionBench {
         var firstWordHits = 0
         var firstWordFiles = 0
         var totals: [Double] = []
+        var detections: [Double] = []
+        var languages: [String: Int] = [:]
         for file in files {
             let audio = try AudioProcessor.loadAudioAsFloatArray(fromPath: file.audio.path)
             var samples: [TranscriberTimings] = []
@@ -141,6 +158,10 @@ enum TranscriptionBench {
                 if options.pause > 0 { Thread.sleep(forTimeInterval: options.pause) }
                 let transcript = try blocking { try await transcriber.transcribe(audio, context: context) }
                 samples.append(transcript.timings ?? TranscriberTimings.zero)
+                if let t = transcript.timings {
+                    languages[t.language ?? "-", default: 0] += 1
+                    if t.languageDetection > 0 { detections.append(t.languageDetection * 1000) }
+                }
                 if wer == nil, let reference = file.reference {
                     wer = WordErrorRate(reference: reference, hypothesis: transcript.text)
                     firstWord = FirstWord.recalled(reference: reference, hypothesis: transcript.text)
@@ -164,6 +185,10 @@ enum TranscriptionBench {
             print(String(format: "first word %d/%d (%.1f%%)", firstWordHits, firstWordFiles, 100 * Double(firstWordHits) / Double(firstWordFiles)))
         }
         print(String(format: "total ms over all files: median %.0f, p90 %.0f", Percentile.of(totals, 50), Percentile.of(totals, 90)))
+        if !detections.isEmpty {
+            print(String(format: "language detection ms: median %.0f, p90 %.0f", Percentile.of(detections, 50), Percentile.of(detections, 90)))
+        }
+        print("languages: " + languages.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", "))
     }
 
     struct Recording {

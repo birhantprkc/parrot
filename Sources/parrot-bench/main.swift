@@ -94,6 +94,9 @@ struct BenchTranscription: ParsableCommand {
     @Option(name: .long, help: "Seconds of silence after the audio, after the trim. Defaults to the tuning's choice.")
     var trailPad: Double?
 
+    @Option(name: .long, help: "Language for a multilingual model: a code such as pt, or auto. Defaults to auto.")
+    var language: String?
+
     func validate() throws {
         if let trim, !["on", "off"].contains(trim) { throw ValidationError("--trim: expected on or off") }
         for (name, value) in [("--lead-pad", leadPad), ("--trail-pad", trailPad)] {
@@ -115,7 +118,8 @@ struct BenchTranscription: ParsableCommand {
                 pause: pause,
                 trim: trim.map { $0 == "on" },
                 leadPad: leadPad,
-                trailPad: trailPad
+                trailPad: trailPad,
+                language: language == "auto" ? nil : language
             ))
         }
     }

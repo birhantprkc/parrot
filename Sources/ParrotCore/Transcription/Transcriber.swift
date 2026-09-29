@@ -29,7 +29,7 @@ package struct TranscriptionContext: Equatable, Sendable {
     /// language only when it hears it: with `language` nil it takes the
     /// sentence for the language it settled on, never one in another
     /// language. Empty for none.
-    var examples: [String: String]
+    package var examples: [String: String]
 
     init(language: String? = nil, prompt: String? = nil, vocabulary: [String] = [], examples: [String: String] = [:]) {
         self.language = language
