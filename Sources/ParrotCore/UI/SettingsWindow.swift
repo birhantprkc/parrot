@@ -30,6 +30,9 @@ final class SettingsWindow {
             defer: false
         )
         window.title = "Parrot Settings"
+        // The header inside says it; the title still names the window in
+        // Mission Control and the window switcher.
+        window.titleVisibility = .hidden
         window.contentView = NSHostingView(rootView: SettingsView(store: store))
         window.isReleasedWhenClosed = false
         window.center()
