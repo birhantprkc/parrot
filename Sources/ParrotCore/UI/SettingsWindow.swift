@@ -103,7 +103,7 @@ private struct SettingsHeader: View {
                     .padding(.bottom, 12)
             }
             Text("Parrot · Settings")
-                .font(.title.weight(.semibold))
+                .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
             Text("Version \(AppBundle.version)")
                 .font(.caption)
