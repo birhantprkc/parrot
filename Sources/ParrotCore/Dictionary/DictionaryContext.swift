@@ -41,7 +41,7 @@ package struct DictionaryContext {
     /// Automatic.
     package static func language(of model: TranscriptionModel, setting: String?) -> String? {
         if let only = knownLanguage(of: model) { return only }
-        if case .fixed(let code) = SpokenLanguage.plan(setting: setting, model: model) { return code }
+        if let code = setting?.lowercased(), model.isMultilingual, model.supportedLanguages.contains(code) { return code }
         return nil
     }
 }

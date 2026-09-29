@@ -113,31 +113,24 @@ package actor WhisperKitTranscriber: Transcriber {
         context: TranscriptionContext,
         pipeline: WhisperKit
     ) async -> (language: String?, prompt: String?, detected: Bool) {
-        switch SpokenLanguage.plan(setting: context.language, model: model) {
+        let spoken = context.spokenLanguages.isEmpty ? SpokenLanguage.preferredCodes() : context.spokenLanguages
+        switch SpokenLanguage.plan(setting: context.language, spoken: spoken, model: model) {
         case .none:
             return (nil, context.prompt, false)
         case .fixed(let code):
-            return (code, context.prompt, false)
-        case .detect:
-            let preferred = context.spokenLanguages.isEmpty ? SpokenLanguage.preferredCodes() : context.spokenLanguages
-            let supported = model.supportedLanguages
-            let fallback = preferred.first(where: supported.contains)
+            // An explicit Language setting fills the prompt already; a single
+            // spoken language comes here with it still unset.
+            return (code, context.prompt ?? Self.example(in: context.examples, for: code), false)
+        case .detect(let candidates):
+            let among = candidates.isEmpty ? Array(model.supportedLanguages) : candidates
+            let fallback = candidates.first
             guard !input.isEmpty else { return (fallback, Self.example(in: context.examples, for: fallback), false) }
             do {
-                let (detected, logProbs) = try await pipeline.detectLangauge(audioArray: input)
-                // The log probability of the detected language among the
-                // languages only: WhisperKit masks every other token.
-                let probability = logProbs[detected].map { Float(exp(Double($0))) } ?? 0
-                let chosen = SpokenLanguage.resolve(
-                    detected: detected,
-                    probability: probability,
-                    preferred: preferred,
-                    supported: supported
-                )
-                Log.info(String(
-                    format: "language: %@ (detected %@ %.2f%@)",
-                    chosen, detected, probability, chosen == detected ? "" : ", not trusted"
-                ))
+                let ranked = try await LanguageDetector.detect(input, among: among, pipeline: pipeline)
+                let chosen = ranked[0].code
+                Log.info("language: \(chosen) (" + ranked.prefix(3).map {
+                    String(format: "%@ %.2f", $0.code, $0.probability)
+                }.joined(separator: " · ") + ")")
                 return (chosen, Self.example(in: context.examples, for: chosen), true)
             } catch {
                 Log.warning("language detection failed: \(error); using \(fallback ?? "the model's default")")

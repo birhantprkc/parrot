@@ -97,6 +97,9 @@ struct BenchTranscription: ParsableCommand {
     @Option(name: .long, help: "Language for a multilingual model: a code such as pt, or auto. Defaults to auto.")
     var language: String?
 
+    @Option(name: .long, help: "Comma-separated languages Automatic chooses among, such as en,es. Defaults to the Mac's languages.")
+    var spoken: String?
+
     func validate() throws {
         if let trim, !["on", "off"].contains(trim) { throw ValidationError("--trim: expected on or off") }
         for (name, value) in [("--lead-pad", leadPad), ("--trail-pad", trailPad)] {
@@ -119,7 +122,8 @@ struct BenchTranscription: ParsableCommand {
                 trim: trim.map { $0 == "on" },
                 leadPad: leadPad,
                 trailPad: trailPad,
-                language: language == "auto" ? nil : language
+                language: language == "auto" ? nil : language,
+                spoken: spoken?.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) } ?? []
             ))
         }
     }

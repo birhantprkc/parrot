@@ -96,7 +96,8 @@ Sources/ParrotCore/
     TranscriberTimings.swift    where a transcription spent its time, per stage
     WhisperKitTranscriber.swift
     WhisperTuning.swift         compute units and decoding options, each measured with `parrot-bench transcription`
-    SpokenLanguage.swift        the language each dictation decodes in: the setting, or detection trusted by preferred languages (pure, tested)
+    SpokenLanguage.swift        the language each dictation decodes in: the setting, or detection among the user's languages (pure, tested)
+    LanguageDetector.swift      Whisper's language detection with only the user's languages competing
     ModelRegistry.swift, TranscriptionModel.swift, ModelStore.swift
   Pipeline/
     Transcript.swift            the value that flows through processing

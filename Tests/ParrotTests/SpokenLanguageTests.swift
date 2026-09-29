@@ -8,24 +8,35 @@ final class SpokenLanguageTests: XCTestCase {
     // MARK: Plan
 
     func testEnglishOnlyModelIsNeverGivenALanguageOrAskedToDetect() {
-        XCTAssertEqual(SpokenLanguage.plan(setting: nil, model: base), .none)
-        XCTAssertEqual(SpokenLanguage.plan(setting: "pt", model: base), .none)
-        XCTAssertEqual(SpokenLanguage.plan(setting: "en", model: base), .none)
+        XCTAssertEqual(SpokenLanguage.plan(setting: nil, spoken: ["en", "es"], model: base), .none)
+        XCTAssertEqual(SpokenLanguage.plan(setting: "pt", spoken: [], model: base), .none)
+        XCTAssertEqual(SpokenLanguage.plan(setting: "en", spoken: [], model: base), .none)
         XCTAssertFalse(base.isMultilingual)
     }
 
     func testExplicitLanguageIsFixed() {
-        XCTAssertEqual(SpokenLanguage.plan(setting: "pt", model: turbo), .fixed("pt"))
-        XCTAssertEqual(SpokenLanguage.plan(setting: "SR", model: turbo), .fixed("sr"))
+        XCTAssertEqual(SpokenLanguage.plan(setting: "pt", spoken: ["en", "es"], model: turbo), .fixed("pt"))
+        XCTAssertEqual(SpokenLanguage.plan(setting: "SR", spoken: [], model: turbo), .fixed("sr"))
     }
 
-    func testAutomaticDetects() {
-        XCTAssertEqual(SpokenLanguage.plan(setting: nil, model: turbo), .detect)
+    func testAutomaticDetectsAmongTheSpokenLanguagesOnly() {
+        XCTAssertEqual(SpokenLanguage.plan(setting: nil, spoken: ["en", "es"], model: turbo), .detect(among: ["en", "es"]))
+    }
+
+    func testOneSpokenLanguageNeedsNoDetection() {
+        XCTAssertEqual(SpokenLanguage.plan(setting: nil, spoken: ["es"], model: turbo), .fixed("es"))
+        // Repeats and codes the model doesn't know don't count.
+        XCTAssertEqual(SpokenLanguage.plan(setting: nil, spoken: ["ES", "es", "tlh"], model: turbo), .fixed("es"))
+    }
+
+    func testWithNoUsableSpokenLanguageEveryLanguageCompetes() {
+        XCTAssertEqual(SpokenLanguage.plan(setting: nil, spoken: [], model: turbo), .detect(among: []))
+        XCTAssertEqual(SpokenLanguage.plan(setting: nil, spoken: ["tlh"], model: turbo), .detect(among: []))
     }
 
     func testUnknownCodeCountsAsAutomatic() {
-        XCTAssertEqual(SpokenLanguage.plan(setting: "xx", model: turbo), .detect)
-        XCTAssertEqual(SpokenLanguage.plan(setting: "", model: turbo), .detect)
+        XCTAssertEqual(SpokenLanguage.plan(setting: "xx", spoken: ["en", "es"], model: turbo), .detect(among: ["en", "es"]))
+        XCTAssertEqual(SpokenLanguage.plan(setting: "", spoken: ["en", "es"], model: turbo), .detect(among: ["en", "es"]))
     }
 
     func testMultilingualModelSupportsWhisperLanguages() {
@@ -34,35 +45,25 @@ final class SpokenLanguageTests: XCTestCase {
         XCTAssertEqual(base.supportedLanguages, ["en"])
     }
 
-    // MARK: Resolve
+    // MARK: Probabilities
 
-    private let whisper = SpokenLanguage.whisperLanguages
-
-    func testPreferredLanguageIsTrustedAtAnyProbability() {
-        let chosen = SpokenLanguage.resolve(detected: "es", probability: 0.2, preferred: ["en", "es"], supported: whisper)
-        XCTAssertEqual(chosen, "es")
+    func testProbabilitiesAreSharedAmongTheGivenLanguagesOnly() {
+        // Logits where Italian would win if it were allowed to compete: it
+        // is not passed in, so Spanish takes it among English and Spanish.
+        let ranked = SpokenLanguage.probabilities([("en", 1.0), ("es", 4.0)])
+        XCTAssertEqual(ranked.map(\.code), ["es", "en"])
+        XCTAssertEqual(ranked.map(\.probability).reduce(0, +), 1, accuracy: 1e-5)
+        XCTAssertEqual(ranked[0].probability, 0.9526, accuracy: 1e-3)
     }
 
-    func testForeignLanguageIsTrustedAtTheThreshold() {
-        let t = SpokenLanguage.foreignThreshold
-        XCTAssertEqual(SpokenLanguage.resolve(detected: "pt", probability: t, preferred: ["en"], supported: whisper), "pt")
-        XCTAssertEqual(SpokenLanguage.resolve(detected: "pt", probability: 0.99, preferred: ["en"], supported: whisper), "pt")
+    func testProbabilitiesSurviveLargeLogits() {
+        let ranked = SpokenLanguage.probabilities([("en", 900), ("es", 899)])
+        XCTAssertEqual(ranked[0].code, "en")
+        XCTAssertFalse(ranked[0].probability.isNaN)
     }
 
-    func testForeignLanguageBelowTheThresholdFallsBackToTheFirstPreferred() {
-        // #15: a short English phrase detected as Portuguese came back translated.
-        let chosen = SpokenLanguage.resolve(detected: "pt", probability: 0.6, preferred: ["en", "es"], supported: whisper)
-        XCTAssertEqual(chosen, "en")
-    }
-
-    func testFallbackSkipsPreferredLanguagesTheModelDoesNotSupport() {
-        let chosen = SpokenLanguage.resolve(detected: "es", probability: 0.5, preferred: ["tlh", "sr"], supported: whisper)
-        XCTAssertEqual(chosen, "sr")
-    }
-
-    func testWithNoUsablePreferredLanguageDetectionStands() {
-        XCTAssertEqual(SpokenLanguage.resolve(detected: "es", probability: 0.3, preferred: [], supported: whisper), "es")
-        XCTAssertEqual(SpokenLanguage.resolve(detected: "es", probability: 0.3, preferred: ["tlh"], supported: whisper), "es")
+    func testNoScoresNoProbabilities() {
+        XCTAssertTrue(SpokenLanguage.probabilities([]).isEmpty)
     }
 
     // MARK: Preferred languages

@@ -6,57 +6,50 @@ import WhisperKit
 /// - A single-language model such as `whisper-base.en` is never told a
 ///   language and never asked to detect one: it only knows one.
 /// - An explicit Language setting is used as given, with detection off.
-/// - Automatic detects the language, then trusts it by the languages the
-///   user speaks (the Languages setting, or the Mac's preferred languages
-///   until it is set): one in that list is trusted at any probability, so
-///   a bilingual user can alternate between dictations; one outside it only
-///   at `foreignThreshold` or above. Short clips are where Whisper's
-///   detection is least reliable (#15: Serbian heard as Spanish, English as
-///   Portuguese), and a wrong language comes back as a translation.
+/// - Automatic chooses among the languages the user speaks (the Languages
+///   setting, or the Mac's preferred languages until it is set), and only
+///   among them: `LanguageDetector` lets no other language compete. Whisper
+///   confuses close languages on short clips (Spanish heard as Italian or
+///   Portuguese, #15: Serbian heard as Spanish), and a wrong language comes
+///   back as a translation. With one language there is nothing to detect.
 package enum SpokenLanguage {
-    /// Probability a detected language outside the user's languages needs
-    /// before it is used. Below it, the first preferred language the model
-    /// supports is used instead. 0.8 rejected real Spanish at 0.62 and 0.72
-    /// on whisper-small and translated it into English, while English
-    /// detected at 0.99 or above; someone who speaks a language most of the
-    /// time can add it to their languages in Settings.
-    package static let foreignThreshold: Float = 0.7
-
     /// What to do before decoding.
     package enum Plan: Equatable, Sendable {
         /// Pass no language: the model has only one.
         case none
         /// Decode in this language, detection off.
         case fixed(String)
-        /// Detect, then `resolve`.
-        case detect
+        /// Detect which of these languages is spoken. Empty when none of the
+        /// user's languages is one the model knows: then every language
+        /// competes, as in WhisperKit's own detection.
+        case detect(among: [String])
     }
 
     /// The plan for `model` with the Language setting `setting` (an ISO 639-1
-    /// code, or nil for Automatic). A code the model does not support, such
-    /// as a typo in a hand edit, counts as Automatic.
-    package static func plan(setting: String?, model: TranscriptionModel) -> Plan {
+    /// code, or nil for Automatic) and the languages the user speaks,
+    /// `spoken`. A code the model does not support, such as a typo in a hand
+    /// edit, counts as Automatic.
+    package static func plan(setting: String?, spoken: [String], model: TranscriptionModel) -> Plan {
         guard model.isMultilingual else { return .none }
-        if let code = setting?.lowercased(), model.supportedLanguages.contains(code) {
+        let supported = model.supportedLanguages
+        if let code = setting?.lowercased(), supported.contains(code) {
             return .fixed(code)
         }
-        return .detect
+        var seen = Set<String>()
+        let candidates = spoken.map { $0.lowercased() }.filter { supported.contains($0) && seen.insert($0).inserted }
+        if candidates.count == 1 { return .fixed(candidates[0]) }
+        return .detect(among: candidates)
     }
 
-    /// The language to decode in after detection heard `detected` with
-    /// `probability` (0 to 1). `preferred` is the user's preferred languages
-    /// as ISO 639-1 codes, most preferred first.
-    package static func resolve(
-        detected: String,
-        probability: Float,
-        preferred: [String],
-        supported: Set<String>
-    ) -> String {
-        if preferred.contains(detected) || probability >= foreignThreshold {
-            return detected
-        }
-        // No preferred language the model knows: detection is all there is.
-        return preferred.first(where: supported.contains) ?? detected
+    /// Softmax over `scores` (a logit per language): each language's
+    /// probability among these languages only, highest first.
+    package static func probabilities(_ scores: [(String, Float)]) -> [(code: String, probability: Float)] {
+        guard let top = scores.map(\.1).max() else { return [] }
+        let weights = scores.map { ($0.0, exp($0.1 - top)) }
+        let total = weights.reduce(0) { $0 + $1.1 }
+        return weights
+            .map { (code: $0.0, probability: $0.1 / total) }
+            .sorted { $0.probability > $1.probability }
     }
 
     /// `identifiers` (as in `Locale.preferredLanguages`: "en-US", "pt-BR",

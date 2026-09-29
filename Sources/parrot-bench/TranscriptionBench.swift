@@ -34,6 +34,8 @@ struct BenchOptions {
     /// The Language setting to run with: a code, or nil for Automatic.
     /// Single-language models ignore it.
     var language: String?
+    /// The languages Automatic chooses among; empty for the Mac's.
+    var spoken: [String]
 
     init(
         folder: String,
@@ -48,7 +50,8 @@ struct BenchOptions {
         trim: Bool? = nil,
         leadPad: Double? = nil,
         trailPad: Double? = nil,
-        language: String? = nil
+        language: String? = nil,
+        spoken: [String] = []
     ) {
         self.folder = folder
         self.runs = runs
@@ -61,6 +64,7 @@ struct BenchOptions {
         self.pause = pause
         self.trim = trim
         self.language = language
+        self.spoken = spoken
         self.leadPad = leadPad
         self.trailPad = trailPad
     }
@@ -113,6 +117,7 @@ enum TranscriptionBench {
 
         let language = DictionaryContext.language(of: model, setting: options.language)
         var chosen = DictionaryContext(store: DictionaryStore(), language: language).context()
+        chosen.spokenLanguages = options.spoken
         // In Automatic the prompt is picked from `examples` once the language
         // is detected, so --no-prompt and --prompt set those too.
         if options.noPrompt {

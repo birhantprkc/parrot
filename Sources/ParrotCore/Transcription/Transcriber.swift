@@ -32,7 +32,7 @@ package struct TranscriptionContext: Equatable, Sendable {
     package var examples: [String: String]
     /// The languages the user speaks, most used first, which Automatic
     /// trusts at any probability. Empty for the Mac's preferred languages.
-    var spokenLanguages: [String]
+    package var spokenLanguages: [String]
 
     init(
         language: String? = nil,
