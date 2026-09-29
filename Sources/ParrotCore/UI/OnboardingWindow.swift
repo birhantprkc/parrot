@@ -220,20 +220,12 @@ struct OnboardingView: View {
             .fixedSize()
             .padding(.top, 32)
 
-            Button { model.getStarted() } label: {
-                Text("Get Started")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color(nsColor: .windowBackgroundColor))
-                    .padding(.horizontal, 22)
-                    .padding(.vertical, 9)
-                    .background(Capsule().fill(Color.primary))
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(.plain)
-            .keyboardShortcut(.defaultAction)
-            .disabled(!model.canGetStarted)
-            .opacity(model.canGetStarted ? 1 : 0.35)
-            .padding(.top, 32)
+            Button("Get Started") { model.getStarted() }
+                .buttonStyle(PillButtonStyle(primary: true))
+                .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
+                .disabled(!model.canGetStarted)
+                .padding(.top, 32)
 
             Label("Audio and text never leave your Mac.", systemImage: "lock.fill")
                 .font(.caption)
@@ -270,7 +262,8 @@ struct OnboardingView: View {
                 .padding(.vertical, 6)
         } else {
             Button(action) { model.allow(kind) }
-                .buttonStyle(.pill)
+                // Filled, so the missing grants read as what to do next.
+                .buttonStyle(.primaryPill)
         }
     }
 }

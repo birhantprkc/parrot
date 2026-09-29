@@ -25,24 +25,36 @@ struct PillLabel: View {
     }
 }
 
-/// A button drawn as a `PillLabel`: `Button("Open") { … }.buttonStyle(.pill)`.
+/// A button drawn as a pill: `.buttonStyle(.pill)` with the light fill of a
+/// `PillLabel`, or `.buttonStyle(.primaryPill)` filled in the text color, for
+/// the one thing to do next.
 struct PillButtonStyle: ButtonStyle {
+    var primary = false
     @Environment(\.isEnabled) private var isEnabled
+    /// `.large` for the window's main button, such as Get Started.
+    @Environment(\.controlSize) private var controlSize
 
     func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 6) {
-            configuration.label.font(.system(size: 13, weight: .medium))
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 6)
-        .background(Capsule().fill(Color.primary.opacity(configuration.isPressed ? 0.14 : 0.08)))
-        .contentShape(Capsule())
-        .opacity(isEnabled ? 1 : 0.4)
+        configuration.label
+            .font(.system(size: 13, weight: primary ? .semibold : .medium))
+            .foregroundStyle(primary ? Color(nsColor: .windowBackgroundColor) : Color.primary)
+            .padding(.horizontal, controlSize == .large ? 22 : 14)
+            .padding(.vertical, controlSize == .large ? 9 : 6)
+            .background(Capsule().fill(fill(pressed: configuration.isPressed)))
+            .contentShape(Capsule())
+            .opacity(isEnabled ? 1 : 0.35)
+    }
+
+    private func fill(pressed: Bool) -> Color {
+        primary
+            ? Color.primary.opacity(pressed ? 0.8 : 1)
+            : Color.primary.opacity(pressed ? 0.14 : 0.08)
     }
 }
 
 extension ButtonStyle where Self == PillButtonStyle {
     static var pill: PillButtonStyle { PillButtonStyle() }
+    static var primaryPill: PillButtonStyle { PillButtonStyle(primary: true) }
 }
 
 /// A menu whose closed state is a `PillLabel` with a chevron.
