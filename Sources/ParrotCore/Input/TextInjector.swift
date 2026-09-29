@@ -70,6 +70,22 @@ final class TextInjector {
         clipboard.copy(text)
     }
 
+    /// Virtual keycode for the space bar (kVK_Space), the same on every layout.
+    private static let keycodeSpace: CGKeyCode = 49
+
+    /// Presses the space bar: a space some apps would trim from a paste.
+    func pressSpace() {
+        let source = CGEventSource(stateID: .privateState)
+        guard
+            let down = CGEvent(keyboardEventSource: source, virtualKey: Self.keycodeSpace, keyDown: true),
+            let up = CGEvent(keyboardEventSource: source, virtualKey: Self.keycodeSpace, keyDown: false)
+        else { return }
+        down.flags = []
+        up.flags = []
+        down.post(tap: Self.postLocation)
+        up.post(tap: Self.postLocation)
+    }
+
     private static func postCommandV() {
         let source = CGEventSource(stateID: .privateState)
         guard

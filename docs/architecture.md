@@ -83,7 +83,9 @@ Sources/ParrotCore/
   Input/
     HotkeyMonitor.swift         CGEventTap for modifier changes only
     Gesture.swift               press/release filtering: short-tap discard, chord cancel (pure, tested)
-    FocusSnapshot.swift         what was focused, whether it is editable or secure
+    FocusSnapshot.swift         what was focused, whether it is editable or secure, and the character before the cursor
+    Delivery.swift              inject, copy or discard, from the focus at start and at delivery (pure decision, tested)
+    Spacing.swift               the spaces around a transcript: always after, before when the text there needs it (pure, tested)
     TextInjector.swift          delivery into the focused field (paste or typed Unicode)
   Audio/
     AudioCapture.swift          capture: permission and device checks, format conversion, per-capture stats
@@ -157,7 +159,8 @@ HotkeyMonitor ──flags──▶ Gesture ──start/stop──▶ DictationCo
                                   DictionaryProcessor, later others
                                                      │ Transcript
                                                      ▼
-                              delivery: paste at the cursor if focus is unchanged;
+                              delivery: paste at the cursor if focus is unchanged,
+                                        with a trailing space, and a leading one if needed;
                                         clipboard if focus moved; discard in a password field
                                                      │
                                                      ▼
@@ -175,6 +178,7 @@ Features plug in at one of these points. They do not add branches to `DictationC
 | `TranscriptionContext` | value passed to `transcribe`: language, prompt text | dictionary prompting, language |
 | `TranscriptProcessor` | `func process(_ transcript: Transcript) -> Transcript`, synchronous, pure where possible | dictionary replacements; future cleanup passes |
 | Delivery decision | chooses injector or fallback from the `FocusSnapshot` and the result | secure fields and focus drift |
+| Delivery spacing | `Spacing.spaced`: a trailing space always, a leading one when the text before the cursor needs it | a space between dictations |
 | `DictationObserver` | `dictationStarted`, `dictationTranscribing`, `dictationFinished(DictationResult)`, `dictationFailed`; each has an empty default | overlay, menu bar, stats, latency |
 | `Settings` sections | a field in `Settings` plus a view in `UI/Sections/` | hotkey, model, language, dictionary editor, input device, stats |
 

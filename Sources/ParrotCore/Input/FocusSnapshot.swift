@@ -76,4 +76,55 @@ struct FocusedElement: Equatable {
     static func == (lhs: FocusedElement, rhs: FocusedElement) -> Bool {
         CFEqual(lhs.ref, rhs.ref)
     }
+
+    /// The character before the insertion point, for `Spacing`. Reads the
+    /// selected range, then the text just before it. Ranges count UTF-16
+    /// units, so two are read and the last character kept: one alone could
+    /// be half an emoji. Falls back to the whole value for apps without
+    /// `AXStringForRange`. Call after `FocusSnapshot.capture()`, which sets
+    /// the timeout, and never on a secure field.
+    func textBeforeCursor() -> TextBeforeCursor {
+        var rangeValue: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(ref, kAXSelectedTextRangeAttribute as CFString, &rangeValue) == .success,
+              let rangeValue, CFGetTypeID(rangeValue) == AXValueGetTypeID() else { return .unknown }
+        var range = CFRange()
+        guard AXValueGetValue(rangeValue as! AXValue, .cfRange, &range), range.location >= 0 else { return .unknown }
+        // Terminals such as Ghostty report position 0 wherever the cursor
+        // is, so 0 is the start only in a field that is empty.
+        if range.location == 0 { return characterCount() == 0 ? .start : .unknown }
+
+        let length = min(range.location, 2)
+        var before = CFRange(location: range.location - length, length: length)
+        var text: CFTypeRef?
+        if let query = AXValueCreate(.cfRange, &before),
+           AXUIElementCopyParameterizedAttributeValue(ref, kAXStringForRangeParameterizedAttribute as CFString, query, &text) == .success,
+           let character = (text as? String)?.last {
+            return .character(character)
+        }
+
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(ref, kAXValueAttribute as CFString, &value) == .success,
+              let value = value as? String else { return .unknown }
+        let units = value.utf16
+        guard range.location <= units.count else { return .unknown }
+        let end = units.index(units.startIndex, offsetBy: range.location)
+        let start = units.index(end, offsetBy: -length)
+        return String(units[start..<end]).flatMap { $0.last }.map(TextBeforeCursor.character) ?? .unknown
+    }
+
+    /// The field's length in UTF-16 units, from `AXNumberOfCharacters` or
+    /// else the value; nil when the app says neither.
+    private func characterCount() -> Int? {
+        var count: CFTypeRef?
+        if AXUIElementCopyAttributeValue(ref, kAXNumberOfCharactersAttribute as CFString, &count) == .success,
+           let count = count as? Int {
+            return count
+        }
+        var value: CFTypeRef?
+        if AXUIElementCopyAttributeValue(ref, kAXValueAttribute as CFString, &value) == .success,
+           let value = value as? String {
+            return value.utf16.count
+        }
+        return nil
+    }
 }

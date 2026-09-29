@@ -36,7 +36,9 @@ enum DeliveryDecision: Equatable {
 }
 
 /// The delivery step of the dictation loop: checks focus against the
-/// snapshot from recording start, then injects, copies or discards.
+/// snapshot from recording start, then injects, copies or discards. An
+/// injected transcript gets a trailing space, and a leading one when the
+/// text before the cursor needs it (`Spacing`).
 @MainActor
 final class TextDelivery {
     private let injector: TextInjector
@@ -51,7 +53,18 @@ final class TextDelivery {
         let now = FocusSnapshot.capture()
         switch DeliveryDecision.decide(start: focusAtStart, now: now) {
         case .inject:
-            injector.inject(text)
+            let before = now.element?.textBeforeCursor() ?? .unknown
+            let spaced = Spacing.spaced(text, before: before)
+            // The kind of character only: the log never carries text.
+            Log.info("  before cursor: \(before.kind)\(spaced.first == " " && text.first != " " ? " · leading space" : "")")
+            if before == .unknown, spaced.hasSuffix(" "), !text.hasSuffix(" ") {
+                // An app that hides its text may trim a pasted trailing
+                // space, as Slack does; a typed one stays.
+                injector.inject(String(spaced.dropLast()))
+                injector.pressSpace()
+            } else {
+                injector.inject(spaced)
+            }
         case .discardSecure:
             let when = focusAtStart?.isSecure == true ? "recording start" : "delivery"
             Log.info("  secure field focused at \(when); transcript discarded")
