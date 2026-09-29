@@ -76,16 +76,16 @@ struct SettingsView: View {
                 }
                 PathLabel(url: Paths.dictionaryFile)
             }
-
-            // Escape and ⌘W close the window: an accessory app has no menu
-            // bar of its own to carry Close.
+        }
+        .formStyle(.grouped)
+        // Escape and ⌘W close the window: an accessory app has no menu bar
+        // of its own to carry Close. Behind the form, so it takes no row.
+        .background {
             Button("Close") { NSApp.keyWindow?.performClose(nil) }
                 .keyboardShortcut("w", modifiers: .command)
-                .frame(width: 0, height: 0)
                 .opacity(0)
                 .accessibilityHidden(true)
         }
-        .formStyle(.grouped)
         .frame(width: 460)
         .frame(minHeight: 420, idealHeight: 560)
         .onExitCommand { NSApp.keyWindow?.performClose(nil) }
@@ -93,8 +93,8 @@ struct SettingsView: View {
 }
 
 /// The Parrot bird centered and the title left-aligned under it, as in the
-/// README. A section
-/// header, so it sits on the window background rather than in a row.
+/// README. A section header, so it sits on the window background rather
+/// than in a row.
 private struct SettingsHeader: View {
     private static let bird: NSImage? = {
         guard let image = NSImage(data: Data(MenuBarController.birdSVG.utf8)) else { return nil }
