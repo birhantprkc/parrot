@@ -145,7 +145,6 @@ struct TranscriptionSection: View {
             caption("\(model.displayName) hears \(only) only; choose a multilingual model to set a language.")
         } else if store.current.language.code == nil {
             spokenLanguagesMenu
-            caption("Detects which of your languages each dictation is in.")
         }
     }
 
