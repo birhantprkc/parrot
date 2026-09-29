@@ -59,6 +59,10 @@ struct SettingsView: View {
                 PathLabel(url: store.file)
             }
 
+            Section("General") {
+                LaunchAtLoginRow()
+            }
+
             HotkeySection(store: store)
 
             TranscriptionSection(store: store)
@@ -70,10 +74,6 @@ struct SettingsView: View {
                     Button("Open Dictionary File") { NSWorkspace.shared.open(Paths.dictionaryFile) }
                 }
                 PathLabel(url: Paths.dictionaryFile)
-            }
-
-            Section("General") {
-                LaunchAtLoginRow()
             }
 
             // Escape and ⌘W close the window: an accessory app has no menu
