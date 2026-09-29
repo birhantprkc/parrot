@@ -113,7 +113,7 @@ private struct SettingsHeader: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-        .padding(.bottom, 12)
+        .padding(.bottom, 28)
         .textCase(nil)
     }
 }
