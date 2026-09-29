@@ -54,7 +54,7 @@ public enum Daemon {
         // Startup has already exited on denied access. If the system has never
         // asked, ask now, without waiting, so the prompt is answered while the
         // model loads rather than on the first press. Parrot.app asks from
-        // the first-run window's Continue instead, never unannounced (#51).
+        // the onboarding window's Allow instead, never unannounced (#51).
         if !AppLaunch.isApp {
             MicrophoneAccess.requestIfUndetermined()
         }
@@ -102,8 +102,9 @@ public enum Daemon {
         let settingsWindow = SettingsWindow(store: settings)
         menuBar.onOpenSettings = { settingsWindow.show() }
         menuBar.setHotkey(monitor.key)
-        // Parrot.app explains a missing permission before macOS asks (#51).
-        FirstRunWindow.startIfNeeded(menuBar: menuBar)
+        // Parrot.app sets up the hotkey, languages and permissions, and
+        // explains each permission before macOS asks (#51).
+        OnboardingWindow.startIfNeeded(store: settings, menuBar: menuBar)
         // A model change loads behind the menu bar and swaps in between dictations (#43).
         let switcher = ModelSwitcher(model: model, transcriber: transcriber, menuBar: menuBar)
 
@@ -239,7 +240,7 @@ public enum Daemon {
 
         Log.info("accessibility not granted; waiting (System Settings → Privacy & Security → Accessibility → parrot)")
         menuBar.setHotkeyHealth(.accessibilityMissing)
-        // Parrot.app leaves the prompt to the first-run window's Continue (#51).
+        // Parrot.app leaves the prompt to the onboarding window's Allow (#51).
         if !AppLaunch.isApp {
             let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
             _ = AXIsProcessTrustedWithOptions(options)

@@ -63,7 +63,8 @@ Sources/ParrotCore/
     DictationObserver.swift     observer protocol and DictationResult (counts and timings, never text)
     LatencyLog.swift            one log line per dictation: press-to-first-sample, release-to-text and each stage, as a DictationObserver
     Startup.swift               startup checks and StartupFailure (permanent vs transient)
-    Permissions.swift           Accessibility and Microphone state, and what the first-run window's Continue asks for (pure, tested)
+    Permissions.swift           Accessibility and Microphone state, and what each Allow button asks for (pure, tested)
+    Onboarding.swift            when the onboarding window shows, its menus, and what Get Started saves (pure, tested)
     Daemon.swift                the `run` command: startup, wiring, run loop
     ModelSwitcher.swift         a model change while running: loads the new model behind the menu bar, swaps it in between dictations
     Updater.swift               Sparkle auto-update, started only in the app role
@@ -112,7 +113,7 @@ Sources/ParrotCore/
   UI/
     MenuBarController.swift
     RecordingOverlay.swift
-    FirstRunWindow.swift        explains both permissions before macOS asks; follows the grants live
+    OnboardingWindow.swift      hotkey, languages and both permissions on one page; follows the grants live
     SettingsWindow.swift        the Settings window: one grouped form, header, dictionary and general rows
     Sections/                   one view per settings section
 
@@ -214,7 +215,7 @@ Parrot needs Microphone and Accessibility. macOS keys both grants to the app's c
 
 A grant belongs to the process that asked: `parrot setup` grants the terminal, which covers foreground runs, but the launch-at-login daemon needs its own. So the daemon asks for itself. Without Accessibility it keeps running with "grant Accessibility to start" in the menu bar and starts the hotkey as soon as the grant appears; it never exits over it, because an exit would either leave the user with nothing running or, under a relaunching supervisor, re-fire the prompt.
 
-Parrot.app never shows a system prompt unannounced. While either grant is missing at launch it opens the first-run window (`UI/FirstRunWindow.swift`), which says what each permission is for and that audio and text stay on the Mac. Its Continue button makes the requests: the Accessibility prompt and its System Settings pane, then the microphone prompt, or the Microphone pane if access was denied. The window shows each grant as it lands and closes once both are on; until then "Grant Permissions…" in the menu bar reopens it. With both grants in place, as after an update of a signed release, it never appears. A foreground `parrot run` has no window: it shows the Accessibility prompt once when it starts the hotkey and requests an undecided microphone at startup.
+Parrot.app never shows a system prompt unannounced. At launch it opens the onboarding window (`UI/OnboardingWindow.swift`) until the user has been through it once, and afterwards while either grant is missing. One page sets the hotkey and the languages the user speaks, and lists both permissions, each with its own Allow button: the microphone prompt (or the Microphone pane once denied), and the Accessibility prompt with its pane, so the two system prompts never stack. Get Started saves the hotkey and languages, moves an English-only model to multilingual Small when another language is ticked, and sets `onboarding.completed`; closing the window sets the flag without saving. The rules are in `App/Onboarding.swift`, pure and tested. "Grant Permissions…" in the menu bar reopens the window while a grant is missing. A foreground `parrot run` has no window: it shows the Accessibility prompt once when it starts the hotkey and requests an undecided microphone at startup.
 
 ## 10. Decision log
 

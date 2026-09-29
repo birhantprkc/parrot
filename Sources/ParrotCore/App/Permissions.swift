@@ -3,7 +3,7 @@ import ApplicationServices
 import AVFoundation
 import Foundation
 
-/// The microphone grant as the first-run window shows it.
+/// The microphone grant as the onboarding window shows it.
 enum MicrophonePermission: Equatable {
     case granted
     /// The system has never asked; a request shows its prompt.
@@ -34,10 +34,10 @@ struct PermissionState: Equatable {
     }
 }
 
-/// Reading and asking for Accessibility and Microphone (#51). The window in
-/// `FirstRunWindow` explains both before any of these requests is made.
+/// Reading and asking for Accessibility and Microphone (#51). The onboarding
+/// window explains both before any of these requests is made.
 enum Permissions {
-    /// One thing Continue does.
+    /// One thing an Allow button does.
     enum Step: Equatable {
         /// `AXIsProcessTrustedWithOptions` with the prompt, which also lists
         /// Parrot in the Accessibility pane.
@@ -47,34 +47,28 @@ enum Permissions {
         case openMicrophoneSettings
     }
 
-    /// Whether Parrot.app opens the first-run window at launch: only while a
-    /// grant is missing, so an upgrade that keeps its grants never sees it.
-    /// A foreground CLI run asks the old way and shows no window.
-    static func showsFirstRunWindow(isApp: Bool, state: PermissionState) -> Bool {
-        isApp && !state.allGranted
+    /// The two grants, each with its own Allow button in the onboarding
+    /// window, so macOS never shows both prompts at once.
+    enum Kind: Equatable {
+        case microphone
+        case accessibility
     }
 
-    /// What Continue does for `state`, in order: the microphone prompt first,
-    /// since it is answered in place, then the Accessibility prompt and its
-    /// pane, so the user ends up where the one remaining switch is. The
-    /// window waits for the microphone answer before the next step. A denied
-    /// microphone can only be turned on in System Settings; its pane opens
-    /// only when Accessibility is done, so the two panes don't replace each
-    /// other.
-    static func continueSteps(for state: PermissionState) -> [Step] {
-        var steps: [Step] = []
-        switch state.microphone {
-        case .granted:
-            break
-        case .notDetermined:
-            steps.append(.requestMicrophone)
-        case .denied:
-            if state.accessibility { steps.append(.openMicrophoneSettings) }
+    /// What Allow does for `kind` in `state`: the microphone prompt while
+    /// the system has never asked, its System Settings pane once denied;
+    /// the Accessibility prompt and its pane, so the user ends up where the
+    /// switch is. Nothing once granted.
+    static func allowSteps(for kind: Kind, in state: PermissionState) -> [Step] {
+        switch kind {
+        case .microphone:
+            switch state.microphone {
+            case .granted: return []
+            case .notDetermined: return [.requestMicrophone]
+            case .denied: return [.openMicrophoneSettings]
+            }
+        case .accessibility:
+            return state.accessibility ? [] : [.promptAccessibility, .openAccessibilitySettings]
         }
-        if !state.accessibility {
-            steps += [.promptAccessibility, .openAccessibilitySettings]
-        }
-        return steps
     }
 
     static func perform(_ step: Step) {

@@ -16,10 +16,10 @@ final class MenuBarController {
     let statusLine: NSMenuItem
     /// Slot: the loaded model.
     let modelLine: NSMenuItem
-    /// Slot: reopens the first-run window (#51). Hidden unless Parrot.app
-    /// started with a permission missing, and again once both are granted.
+    /// Slot: reopens the onboarding window (#51). Shown in Parrot.app while
+    /// a permission is missing.
     let grantPermissionsItem: NSMenuItem
-    /// What `grantPermissionsItem` does; set by `FirstRunWindow`.
+    /// What `grantPermissionsItem` does; set by `OnboardingWindow`.
     var onGrantPermissions: (() -> Void)?
     /// Slot: opens the Settings window (#41) through `onOpenSettings`.
     let settingsItem: NSMenuItem

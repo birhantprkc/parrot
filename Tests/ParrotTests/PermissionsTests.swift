@@ -21,43 +21,17 @@ final class PermissionsTests: XCTestCase {
         XCTAssertFalse(state(true, .denied).allGranted)
     }
 
-    func testWindowShowsInTheAppWhileAGrantIsMissing() {
-        XCTAssertTrue(Permissions.showsFirstRunWindow(isApp: true, state: state(false, .notDetermined)))
-        XCTAssertTrue(Permissions.showsFirstRunWindow(isApp: true, state: state(false, .granted)))
-        XCTAssertTrue(Permissions.showsFirstRunWindow(isApp: true, state: state(true, .notDetermined)))
-        XCTAssertTrue(Permissions.showsFirstRunWindow(isApp: true, state: state(true, .denied)))
+    func testMicrophoneAllowAsksOnceThenOpensItsPane() {
+        XCTAssertEqual(Permissions.allowSteps(for: .microphone, in: state(false, .notDetermined)), [.requestMicrophone])
+        XCTAssertEqual(Permissions.allowSteps(for: .microphone, in: state(false, .denied)), [.openMicrophoneSettings])
+        XCTAssertEqual(Permissions.allowSteps(for: .microphone, in: state(false, .granted)), [])
     }
 
-    func testUpgradeWithGrantsIntactShowsNoWindow() {
-        XCTAssertFalse(Permissions.showsFirstRunWindow(isApp: true, state: state(true, .granted)))
-    }
-
-    func testForegroundRunShowsNoWindow() {
-        XCTAssertFalse(Permissions.showsFirstRunWindow(isApp: false, state: state(false, .notDetermined)))
-        XCTAssertFalse(Permissions.showsFirstRunWindow(isApp: false, state: state(true, .granted)))
-    }
-
-    func testContinueOnAFreshInstallAsksForAccessibilityThenTheMicrophone() {
+    func testAccessibilityAllowPromptsAndOpensItsPane() {
         XCTAssertEqual(
-            Permissions.continueSteps(for: state(false, .notDetermined)),
-            [.requestMicrophone, .promptAccessibility, .openAccessibilitySettings]
-        )
-    }
-
-    func testContinueSkipsWhatIsGranted() {
-        XCTAssertEqual(
-            Permissions.continueSteps(for: state(false, .granted)),
+            Permissions.allowSteps(for: .accessibility, in: state(false, .granted)),
             [.promptAccessibility, .openAccessibilitySettings]
         )
-        XCTAssertEqual(Permissions.continueSteps(for: state(true, .notDetermined)), [.requestMicrophone])
-        XCTAssertEqual(Permissions.continueSteps(for: state(true, .granted)), [])
-    }
-
-    func testDeniedMicrophoneOpensItsPaneOnlyOnceAccessibilityIsDone() {
-        XCTAssertEqual(Permissions.continueSteps(for: state(true, .denied)), [.openMicrophoneSettings])
-        XCTAssertEqual(
-            Permissions.continueSteps(for: state(false, .denied)),
-            [.promptAccessibility, .openAccessibilitySettings]
-        )
+        XCTAssertEqual(Permissions.allowSteps(for: .accessibility, in: state(true, .notDetermined)), [])
     }
 }
