@@ -47,19 +47,6 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            VStack(spacing: 6) {
-                Image(nsImage: NSApp.applicationIconImage)
-                    .resizable()
-                    .frame(width: 64, height: 64)
-                Text("Parrot · Settings")
-                    .font(.title2.weight(.semibold))
-                Text("Version \(AppBundle.version)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .frame(maxWidth: .infinity)
-            .listRowBackground(Color.clear)
-
             Section {
                 HStack {
                     Button("Reset to Defaults") { store.write(Settings()) }
@@ -70,13 +57,14 @@ struct SettingsView: View {
                     }
                 }
                 PathLabel(url: store.file)
+            } header: {
+                SettingsHeader()
             }
 
             Section("General") {
+                HotkeyRow(store: store)
                 LaunchAtLoginRow()
             }
-
-            HotkeySection(store: store)
 
             TranscriptionSection(store: store)
 
@@ -101,6 +89,36 @@ struct SettingsView: View {
         .frame(width: 460)
         .frame(minHeight: 420, idealHeight: 560)
         .onExitCommand { NSApp.keyWindow?.performClose(nil) }
+    }
+}
+
+/// The Parrot bird, as in the README, above the window's title. A section
+/// header, so it sits on the window background rather than in a row.
+private struct SettingsHeader: View {
+    private static let bird: NSImage? = {
+        guard let image = NSImage(data: Data(MenuBarController.birdSVG.utf8)) else { return nil }
+        image.size = NSSize(width: 72, height: 72)
+        image.isTemplate = true
+        return image
+    }()
+
+    var body: some View {
+        VStack(spacing: 8) {
+            if let bird = Self.bird {
+                Image(nsImage: bird)
+                    .renderingMode(.template)
+                    .foregroundStyle(.primary)
+            }
+            Text("Parrot · Settings")
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(.primary)
+            Text("Version \(AppBundle.version)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.bottom, 12)
+        .textCase(nil)
     }
 }
 
