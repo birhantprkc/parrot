@@ -18,15 +18,18 @@ struct TranscriptionSection: View {
 
     var body: some View {
         Section("Transcription") {
-            LabeledContent("Model") {
+            LabeledContent {
                 Menu(selectedModel.map(Self.menuTitle) ?? "None") {
                     modelGroup("English", ModelRegistry.shared.filter { !$0.isMultilingual })
                     modelGroup("Multilingual", ModelRegistry.shared.filter(\.isMultilingual))
                 }
                 .fixedSize()
-            }
-            if let model = selectedModel, loading.current == nil {
-                caption(summary(model))
+            } label: {
+                // A second Text in a form row's label shows as its subtitle.
+                Text("Model")
+                if let model = selectedModel, loading.current == nil {
+                    Text(summary(model))
+                }
             }
 
             if let state = loading.current {
