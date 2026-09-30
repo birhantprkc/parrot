@@ -21,8 +21,19 @@ final class RecordingOverlay {
     nonisolated static let messageDuration: TimeInterval = 4
 
     /// Wide enough for a one-line message; the panel is transparent and
-    /// click-through, so the unused width is invisible.
-    private static let panelSize = NSSize(width: 640, height: 44)
+    /// click-through, so the unused width is invisible. Taller than the pill
+    /// so its SwiftUI shadow is not clipped.
+    private static let panelSize = NSSize(width: 640, height: 64)
+
+    /// How long the pill takes to grow or shrink; on hide, the window is
+    /// ordered out once it has.
+    nonisolated static let scaleDuration: TimeInterval = 0.3
+
+    init() {
+        // Build the panel now, not on the first press, so the first pill
+        // appears as quickly as every later one.
+        ensureWindow()
+    }
 
     private var window: NSPanel?
     private let model = OverlayModel()
@@ -57,7 +68,7 @@ final class RecordingOverlay {
         // shown again in the meantime.
         let window = self.window
         let model = self.model
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.scaleDuration) {
             guard model.state == .hidden else { return }
             window?.orderOut(nil)
         }
@@ -101,7 +112,10 @@ final class RecordingOverlay {
         panel.level = .statusBar
         panel.isOpaque = false
         panel.backgroundColor = .clear
-        panel.hasShadow = true
+        // The pill draws its own shadow. A window shadow is computed from the
+        // window's contents when it is shown, so it would not follow the pill
+        // as it grows and shrinks, and would linger after it had gone.
+        panel.hasShadow = false
         panel.ignoresMouseEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
         panel.hidesOnDeactivate = false
@@ -122,7 +136,9 @@ final class RecordingOverlay {
         let frame = window.frame
         let visible = screen.visibleFrame
         let x = visible.midX - frame.width / 2
-        let y = visible.minY + 32
+        // The pill sits 32 pt above the bottom of the visible frame; the
+        // panel extends below it by half its extra height.
+        let y = visible.minY + 32 - (frame.height - 44) / 2
         window.setFrameOrigin(NSPoint(x: x, y: y))
     }
 }
@@ -206,15 +222,16 @@ private struct OverlayPill: View {
 
     var body: some View {
         content
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 13)
             .padding(.vertical, 9)
             .background(
                 Capsule()
                     .fill(Color(red: 16/255, green: 18/255, blue: 18/255))
+                    .shadow(color: .black.opacity(0.28), radius: 6, y: 2)
             )
             .scaleEffect(model.state == .hidden ? 0 : 1)
             .animation(
-                .timingCurve(0.16, 1, 0.3, 1, duration: 0.3),
+                .timingCurve(0.16, 1, 0.3, 1, duration: RecordingOverlay.scaleDuration),
                 value: model.state
             )
     }
@@ -224,19 +241,19 @@ private struct OverlayPill: View {
         switch model.state {
         case .hidden, .recording:
             Waveform(levels: model.levels)
-                .frame(width: 54, height: 22)
+                .frame(width: 51, height: 20)
         case .transcribing:
             ProgressView()
                 .controlSize(.small)
                 .scaleEffect(0.8)
-                .frame(width: 54, height: 22)
+                .frame(width: 51, height: 20)
         case .message(let text):
             Text(text)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(Color(red: 235/255, green: 238/255, blue: 242/255))
                 .lineLimit(1)
                 .fixedSize()
-                .frame(height: 22)
+                .frame(height: 20)
         }
     }
 }
@@ -246,7 +263,7 @@ private struct Waveform: View {
     private let color = Color(red: 181/255.0, green: 209/255.0, blue: 255/255.0)
 
     var body: some View {
-        HStack(alignment: .center, spacing: 4) {
+        HStack(alignment: .center, spacing: 3.75) {
             ForEach(Array(levels.enumerated()), id: \.offset) { _, level in
                 Capsule()
                     .fill(color)
