@@ -242,6 +242,12 @@ private struct OverlayPill: View {
                     .fill(Color(red: 16/255, green: 18/255, blue: 18/255))
                     .shadow(color: .black.opacity(0.28), radius: 6, y: 2)
             )
+            // A faint light rim, like the edge of a macOS window, so the pill
+            // holds its shape on a dark background.
+            .overlay(
+                Capsule()
+                    .strokeBorder(Color.white.opacity(0.14), lineWidth: 1)
+            )
             .scaleEffect(model.state == .hidden ? 0 : 1)
             .animation(
                 .timingCurve(0.16, 1, 0.3, 1, duration: RecordingOverlay.scaleDuration),
