@@ -239,13 +239,10 @@ private struct OverlayPill: View {
     @ViewBuilder
     private var content: some View {
         switch model.state {
-        case .hidden, .recording:
-            Waveform(levels: model.levels)
-                .frame(width: 51, height: 20)
-        case .transcribing:
-            ProgressView()
-                .controlSize(.small)
-                .scaleEffect(0.8)
+        case .hidden, .recording, .transcribing:
+            // The same bars in both states, so transcribing is the recording
+            // bars settling into a wave rather than a swap to a spinner.
+            Waveform(levels: model.levels, transcribing: model.state == .transcribing)
                 .frame(width: 51, height: 20)
         case .message(let text):
             Text(text)
@@ -260,9 +257,29 @@ private struct OverlayPill: View {
 
 private struct Waveform: View {
     let levels: [Float]
+    /// Ignore `levels` and run a wave across the bars, left to right.
+    var transcribing = false
     private let color = Color(red: 181/255.0, green: 209/255.0, blue: 255/255.0)
 
+    /// Seconds for one wave to cross a bar, and the phase step between bars.
+    private static let wavePeriod = 0.45
+    private static let barPhase = 0.9
+
     var body: some View {
+        TimelineView(.animation(paused: !transcribing)) { context in
+            bars(transcribing ? wave(at: context.date) : levels)
+        }
+    }
+
+    private func wave(at date: Date) -> [Float] {
+        let t = date.timeIntervalSinceReferenceDate * 2 * .pi / Self.wavePeriod
+        return levels.indices.map { i in
+            let s = (sin(t - Double(i) * Self.barPhase) + 1) / 2
+            return Float(0.2 + 0.45 * s)
+        }
+    }
+
+    private func bars(_ levels: [Float]) -> some View {
         HStack(alignment: .center, spacing: 3.75) {
             ForEach(Array(levels.enumerated()), id: \.offset) { _, level in
                 Capsule()
@@ -270,7 +287,9 @@ private struct Waveform: View {
                     .frame(width: 2.5)
                     .frame(maxHeight: .infinity)
                     .scaleEffect(y: max(0.10, CGFloat(level)), anchor: .center)
-                    .animation(.easeOut(duration: 0.09), value: level)
+                    // The wave is already smooth frame to frame; easing it
+                    // too only makes it trail.
+                    .animation(transcribing ? nil : .easeOut(duration: 0.09), value: level)
             }
         }
     }
